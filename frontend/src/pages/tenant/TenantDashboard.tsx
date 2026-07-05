@@ -187,76 +187,79 @@ export default function TenantDashboard() {
 
   return (
     <>
-    <div className="min-h-screen bg-background flex flex-col md:flex-row dark print:hidden">
-      
+    <div className="min-h-screen bg-[#020617] flex flex-col md:flex-row dark print:hidden text-foreground relative overflow-hidden">
+      {/* Background Orbs */}
+      <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
+      <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
+
       {/* Topbar Mobile */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-xl z-50 sticky top-0">
-        <h2 className="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
-          <LayoutDashboard className="w-5 h-5" /> {profile?.tenants?.name || 'Sua Empresa'}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-white/5 bg-slate-950/50 backdrop-blur-xl z-50 sticky top-0">
+        <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5 text-purple-400" /> {profile?.tenants?.name || 'Sua Empresa'}
         </h2>
-        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-white hover:bg-white/5">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </Button>
       </div>
 
       {/* Sidebar Tenant */}
-      <aside className={`w-full md:w-64 border-r border-border bg-background md:bg-card/50 backdrop-blur-xl flex-col absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0 flex' : '-translate-x-full md:translate-x-0 hidden md:flex'} top-[73px] md:top-0`}>
-        <div className="p-6 hidden md:block">
-          <h2 className="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5" /> {profile?.tenants?.name || 'Sua Empresa'}
+      <aside className={`w-full md:w-64 border-r border-white/5 bg-slate-950/40 backdrop-blur-xl flex-col absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0 flex' : '-translate-x-full md:translate-x-0 hidden md:flex'} top-[73px] md:top-0`}>
+        <div className="p-6 hidden md:block border-b border-white/5">
+          <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-purple-400" /> {profile?.tenants?.name || 'Sua Empresa'}
           </h2>
-          <p className="text-xs text-muted-foreground mt-1">Olá, {profile?.full_name || 'Usuário'}</p>
+          <p className="text-[10px] font-mono text-purple-400 uppercase tracking-widest mt-1">Olá, {profile?.full_name || 'Usuário'}</p>
         </div>
-        <nav className="flex-1 px-4 space-y-2">
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/dashboard')}>
-            <LayoutDashboard className="w-4 h-4" /> Visão Geral
+        <nav className="flex-1 p-4 space-y-1">
+          <Button variant="secondary" className="w-full justify-start gap-2 bg-white/5 text-white border-0 hover:bg-white/10" onClick={() => navigate('/dashboard')}>
+            <LayoutDashboard className="w-4 h-4 text-purple-400" /> Visão Geral
           </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/pdv')}>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/pdv')}>
             <ShoppingCart className="w-4 h-4" /> PDV (Vendas)
           </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/produtos')}>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/produtos')}>
             <Package className="w-4 h-4" /> Estoque & Produtos
           </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/clientes')}>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/clientes')}>
             <Users className="w-4 h-4" /> CRM (Clientes)
           </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/financeiro')}>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/financeiro')}>
             <DollarSign className="w-4 h-4" /> Financeiro
           </Button>
-          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/configuracoes')}>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/configuracoes')}>
             <Settings className="w-4 h-4" /> Configurações
           </Button>
         </nav>
-        <div className="p-4 border-t border-border">
-          <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleLogout}>
-            <LogOut className="w-4 h-4" /> Sair
+        <div className="p-4 border-t border-white/5">
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" /> Sair da Conta
           </Button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto z-10">
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">Resumo das suas operações.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">Visão Geral</h1>
+            <p className="text-zinc-400 mt-1 text-sm">Resumo financeiro e de operações em tempo real.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <span className="text-sm font-medium text-muted-foreground">Período:</span>
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto bg-glass p-2 rounded-lg border border-white/5 shadow-lg">
+            <span className="text-xs font-mono text-zinc-400 uppercase px-2">Filtrar período</span>
             <Input 
               type="date" 
-              className="w-auto h-10 dark:[color-scheme:dark] text-foreground" 
+              className="w-auto h-9 bg-slate-900 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600 font-mono text-xs dark:[color-scheme:dark]" 
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
-            <span className="text-sm font-medium text-muted-foreground">até</span>
+            <span className="text-xs font-mono text-zinc-500">até</span>
             <Input 
               type="date" 
-              className="w-auto h-10 dark:[color-scheme:dark] text-foreground" 
+              className="w-auto h-9 bg-slate-900 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600 font-mono text-xs dark:[color-scheme:dark]" 
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
-            <Button variant="secondary" onClick={() => loadMetrics()} className="h-10">
+            <Button onClick={() => loadMetrics()} className="h-9 bg-purple-600 hover:bg-purple-500 text-white font-semibold shadow-md shadow-purple-600/10 border-0">
               Filtrar
             </Button>
           </div>
@@ -264,113 +267,113 @@ export default function TenantDashboard() {
 
         {/* Resumo Rápido */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-          <Card>
+          <Card className="bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
-              <CardDescription>Vendas de Hoje</CardDescription>
-              <CardTitle className="text-3xl text-green-500">
+              <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Vendas no Período</CardDescription>
+              <CardTitle className="text-3xl font-black text-emerald-400">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.vendasHoje)}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">{metrics.qtdPedidosHoje} liquidados</p>
+              <p className="text-xs text-zinc-500 font-mono">{metrics.qtdPedidosHoje} liquidadas com sucesso</p>
             </CardContent>
           </Card>
           
-          <Card className="border-blue-500/20">
+          <Card className="bg-glass border border-white/5 hover:border-cyan-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
-              <CardDescription>Saldo Pendente (Reservas)</CardDescription>
-              <CardTitle className="text-3xl text-blue-500">
+              <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Saldo Pendente (Vitrine)</CardDescription>
+              <CardTitle className="text-3xl font-black text-cyan-400">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.saldoPendente)}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">aguardando retirada</p>
+              <p className="text-xs text-zinc-500 font-mono">aguardando retirada ou entrega</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-glass border border-white/5 hover:border-amber-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
-              <CardDescription>Contas Vencidas</CardDescription>
-              <CardTitle className="text-3xl text-yellow-500">
+              <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Contas Vencidas</CardDescription>
+              <CardTitle className="text-3xl font-black text-amber-400">
                 {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.contasVencidas)}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">{metrics.qtdVencidas} faturas</p>
+              <p className="text-xs text-zinc-500 font-mono">{metrics.qtdVencidas} faturas em atraso</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-glass border border-white/5 hover:border-rose-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
-              <CardDescription>Alerta Estoque</CardDescription>
-              <CardTitle className="text-3xl text-destructive">{metrics.alertaEstoque}</CardTitle>
+              <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Alerta Estoque</CardDescription>
+              <CardTitle className="text-3xl font-black text-rose-400">{metrics.alertaEstoque}</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-muted-foreground">produtos baixos</p>
+              <p className="text-xs text-zinc-500 font-mono">itens abaixo do mínimo definido</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Acesso Rápido (Funções do Site) */}
         <div className="mb-8">
-          <h2 className="text-xl font-bold mb-4">Acesso Rápido</h2>
+          <h2 className="text-lg font-bold text-white mb-4 uppercase tracking-wider text-xs">Atalhos do Painel</h2>
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
-            <Card className="cursor-pointer border-border hover:border-primary transition-all hover:bg-primary/5 shadow-sm" onClick={() => navigate('/pdv')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-purple-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/pdv')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-primary/10 rounded-full text-primary">
-                  <ShoppingCart className="w-8 h-8" />
+                <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20">
+                  <ShoppingCart className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold">PDV</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Frente de Caixa</p>
+                  <h3 className="font-semibold text-white text-sm">Frente PDV</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Realizar Vendas</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-border hover:border-blue-500 transition-all hover:bg-blue-500/5 shadow-sm" onClick={() => navigate('/produtos')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-blue-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/produtos')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-blue-500/10 rounded-full text-blue-500">
-                  <Package className="w-8 h-8" />
+                <div className="p-3 bg-blue-500/10 rounded-full text-blue-400 border border-blue-500/20">
+                  <Package className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold">Estoque</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Produtos</p>
+                  <h3 className="font-semibold text-white text-sm">Estoque</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Gerenciar Produtos</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-border hover:border-purple-500 transition-all hover:bg-purple-500/5 shadow-sm" onClick={() => navigate('/clientes')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-indigo-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/clientes')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-purple-500/10 rounded-full text-purple-500">
-                  <Users className="w-8 h-8" />
+                <div className="p-3 bg-indigo-500/10 rounded-full text-indigo-400 border border-indigo-500/20">
+                  <Users className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold">CRM</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Clientes</p>
+                  <h3 className="font-semibold text-white text-sm">CRM</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Base Clientes</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-border hover:border-green-500 transition-all hover:bg-green-500/5 shadow-sm" onClick={() => navigate('/financeiro')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/financeiro')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-green-500/10 rounded-full text-green-500">
-                  <DollarSign className="w-8 h-8" />
+                <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-400 border border-emerald-500/20">
+                  <DollarSign className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold">Financeiro</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Fluxo de Caixa</p>
+                  <h3 className="font-semibold text-white text-sm">Finanças</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Fluxo de Caixa</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer border-border hover:border-zinc-500 transition-all hover:bg-zinc-500/5 shadow-sm" onClick={() => navigate('/configuracoes')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-zinc-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/configuracoes')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-zinc-500/10 rounded-full text-zinc-500">
-                  <Settings className="w-8 h-8" />
+                <div className="p-3 bg-zinc-500/10 rounded-full text-zinc-400 border border-zinc-500/20">
+                  <Settings className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold">Ajustes</h3>
-                  <p className="text-xs text-muted-foreground mt-1">Empresa</p>
+                  <h3 className="font-semibold text-white text-sm">Configuração</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Ajustes Gerais</p>
                 </div>
               </CardContent>
             </Card>

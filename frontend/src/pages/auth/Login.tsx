@@ -43,23 +43,28 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden dark">
-      {/* Dynamic Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-primary/20 rounded-full blur-[120px]" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-[120px]" />
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4 relative overflow-hidden dark text-foreground">
+      {/* Orbes Neon Futuristas no Fundo */}
+      <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[150px] animate-float" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/20 rounded-full blur-[150px] animate-float-delayed" />
       
       <div className="mb-8 flex flex-col items-center z-10">
-        <div className="bg-primary/10 p-3 rounded-xl mb-4 border border-primary/20 shadow-lg shadow-primary/20">
-          <Box className="w-10 h-10 text-primary" />
+        <div className="bg-gradient-to-tr from-purple-600 to-cyan-400 p-4 rounded-2xl mb-4 shadow-lg shadow-purple-500/20 border border-white/10">
+          <Box className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">NexERP Cloud</h1>
-        <p className="text-muted-foreground mt-1">Gestão inteligente e segura</p>
+        <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent">
+          NexERP Cloud
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1 uppercase tracking-widest font-mono">Gestão inteligente e segura</p>
       </div>
 
-      <Card className="w-full max-w-md z-10 border-white/10 shadow-2xl">
-        <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-2xl font-semibold tracking-tight">Entrar na plataforma</CardTitle>
-          <CardDescription>Insira suas credenciais para acessar seu painel.</CardDescription>
+      <Card className="w-full max-w-md z-10 bg-glass border border-white/10 shadow-2xl relative overflow-hidden">
+        {/* Glow Line em cima do Card */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400" />
+        
+        <CardHeader className="space-y-2 text-center pt-8">
+          <CardTitle className="text-2xl font-bold tracking-tight text-white">Entrar na plataforma</CardTitle>
+          <CardDescription className="text-zinc-400">Insira suas credenciais para acessar seu painel.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
@@ -69,13 +74,14 @@ export default function Login() {
               </div>
             )}
             <div className="space-y-2">
+              <label className="text-xs font-mono text-zinc-400 uppercase">Email Corporativo</label>
               <div className="relative">
-                <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                 <Input 
                   id="email" 
                   type="email" 
                   placeholder="seu@email.com" 
-                  className="pl-9"
+                  className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required 
@@ -83,13 +89,14 @@ export default function Login() {
               </div>
             </div>
             <div className="space-y-2">
+              <label className="text-xs font-mono text-zinc-400 uppercase">Senha de Acesso</label>
               <div className="relative">
-                <Lock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                 <Input 
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-9"
+                  className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required 
@@ -97,12 +104,12 @@ export default function Login() {
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Autenticando..." : "Entrar"}
+          <CardFooter className="flex flex-col space-y-4 pb-8 pt-4">
+            <Button type="submit" className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold transition-all shadow-lg shadow-purple-500/25 border-0" disabled={loading}>
+              {loading ? "Autenticando..." : "Entrar no Painel"}
             </Button>
-            <div className="text-center text-sm text-muted-foreground">
-              Não possui uma conta? <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/planos')}>Cadastre-se</Button>
+            <div className="text-center text-sm text-zinc-400">
+              Não possui uma conta? <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-semibold" onClick={() => navigate('/planos')}>Cadastre-se</Button>
             </div>
           </CardFooter>
         </form>
