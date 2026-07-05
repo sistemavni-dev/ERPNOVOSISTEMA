@@ -8,6 +8,8 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS tenants (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
+    document TEXT,
+    address TEXT,
     store_slug TEXT UNIQUE,
     store_description TEXT,
     whatsapp_number TEXT,
@@ -70,6 +72,7 @@ CREATE TABLE IF NOT EXISTS financial_transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     sale_id UUID REFERENCES sales(id) ON DELETE SET NULL,
+    customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
     type TEXT NOT NULL CHECK (type IN ('receivable', 'payable')),
     amount DECIMAL(10, 2) NOT NULL,
     due_date DATE DEFAULT CURRENT_DATE,

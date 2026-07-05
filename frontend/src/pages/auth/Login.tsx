@@ -102,7 +102,7 @@ export default function Login() {
               {loading ? "Autenticando..." : "Entrar"}
             </Button>
             <div className="text-center text-sm text-muted-foreground">
-              Não possui uma conta? <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/register')}>Cadastre-se</Button>
+              Não possui uma conta? <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/planos')}>Cadastre-se</Button>
             </div>
           </CardFooter>
         </form>

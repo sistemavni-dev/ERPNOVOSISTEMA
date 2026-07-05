@@ -42,12 +42,16 @@ export default function Register() {
     // 2. Inserir a Empresa (Tenant) no banco de dados.
     // Usaremos o ID do usuário recém criado como ID do Tenant para amarrar a conta.
     if (authData.user) {
+      const query = new URLSearchParams(window.location.search)
+      const selectedPlan = query.get('plan') || 'prata' // plano padrão se não vier na URL
+
       const { error: tenantError } = await supabase
         .from('tenants')
         .insert([{
           id: authData.user.id,
           name: companyName,
           document: document,
+          plan: selectedPlan,
           status: 'pending' // Status inicial aguardando aprovação
         }])
 
@@ -60,8 +64,9 @@ export default function Register() {
       }
     }
     
-    alert("Conta criada com sucesso! Aguardando aprovação do Super Admin.")
-    navigate('/login')
+    // Conta criada e sessão iniciada automaticamente pelo Supabase!
+    // Redireciona direto para a escolha do plano.
+    navigate('/planos')
     setLoading(false)
   }
 

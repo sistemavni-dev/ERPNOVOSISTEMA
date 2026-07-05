@@ -3,19 +3,14 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Store, Copy, ExternalLink, Printer } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X } from "lucide-react"
 
 export default function TenantDashboard() {
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<any>(null)
   const navigate = useNavigate()
-
-  // Estados da Vitrine Virtual
-  const [storeSlug, setStoreSlug] = useState("")
-  const [whatsappNumber, setWhatsappNumber] = useState("")
-  const [storeDescription, setStoreDescription] = useState("")
-  const [savingStore, setSavingStore] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Estados de Métricas
   const [metrics, setMetrics] = useState({
@@ -31,7 +26,10 @@ export default function TenantDashboard() {
   const [receiptData, setReceiptData] = useState<any>(null)
 
   // Date Picker State para o Dashboard
-  const [selectedDate, setSelectedDate] = useState(() => {
+  const [startDate, setStartDate] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => {
     return new Date().toISOString().split('T')[0]
   })
 
@@ -40,8 +38,9 @@ export default function TenantDashboard() {
   }, [])
 
   useEffect(() => {
+    // Carrega apenas no início
     if (profile) loadMetrics()
-  }, [selectedDate])
+  }, [profile])
 
   const checkAccess = async () => {
     // 1. Get current user
@@ -63,39 +62,32 @@ export default function TenantDashboard() {
     } else {
       setProfile({ tenants: tenantData }) // Mantendo a estrutura para não quebrar o JSX
       
-      // Load store settings
-      setStoreSlug(tenantData.store_slug || "")
-      setWhatsappNumber(tenantData.whatsapp_number || "")
-      setStoreDescription(tenantData.store_description || "")
-
       if (tenantData.status !== 'active' && tenantData.status !== 'pending') {
         alert("O status da sua empresa é: " + tenantData.status)
       }
 
       // 3. Load Dashboard Metrics (chamado pelo useEffect de selectedDate)
       // Mas para não atrasar o primeiro render:
-      loadMetrics(tenantData)
+      loadMetrics()
     }
     
     setLoading(false)
   }
 
-  const loadMetrics = async (forceTenant?: any) => {
-    const targetDateStr = selectedDate
-    const startOfDay = new Date(targetDateStr)
-    // Compensa fuso se necessário, mas para simplificar:
+  const loadMetrics = async () => {
+    const startOfDay = new Date(startDate)
     startOfDay.setHours(0, 0, 0, 0)
     
-    const endOfDay = new Date(startOfDay)
-    endOfDay.setDate(endOfDay.getDate() + 1)
+    const endOfDay = new Date(endDate)
+    endOfDay.setHours(23, 59, 59, 999)
     
-    // Vendas do dia selecionado
+    // Vendas no período selecionado
     const { data: salesToday } = await supabase
       .from('sales')
       .select('total_amount')
       .eq('status', 'paid')
       .gte('created_at', startOfDay.toISOString())
-      .lt('created_at', endOfDay.toISOString())
+      .lte('created_at', endOfDay.toISOString())
       
     const totalVendas = salesToday?.reduce((acc, sale) => acc + Number(sale.total_amount), 0) || 0
     const qtdPedidos = salesToday?.length || 0
@@ -183,57 +175,33 @@ export default function TenantDashboard() {
     }, 500)
   }
 
-  const handleSaveStorefront = async () => {
-    // Busca o usuário logado para garantir que temos o ID
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-
-    setSavingStore(true)
-
-    // Formata o slug (remove espaços, caracteres especiais)
-    const formattedSlug = storeSlug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-
-    const { error } = await supabase
-      .from('tenants')
-      .update({
-        store_slug: formattedSlug,
-        whatsapp_number: whatsappNumber,
-        store_description: storeDescription
-      })
-      .eq('id', user.id)
-
-    if (error) {
-      alert("Erro ao salvar vitrine: " + error.message)
-    } else {
-      setStoreSlug(formattedSlug)
-      alert("Vitrine atualizada com sucesso!")
-    }
-    setSavingStore(false)
-  }
-
   const handleLogout = async () => {
     await supabase.auth.signOut()
     navigate('/login')
-  }
-
-  const copyToClipboard = () => {
-    const url = `${window.location.origin}/loja/${storeSlug}`
-    navigator.clipboard.writeText(url)
-    alert("Link copiado para a área de transferência!")
   }
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-foreground dark">Carregando painel...</div>
   }
 
-  const storeUrl = storeSlug ? `${window.location.origin}/loja/${storeSlug}` : ""
 
   return (
     <>
-    <div className="min-h-screen bg-background flex dark print:hidden">
+    <div className="min-h-screen bg-background flex flex-col md:flex-row dark print:hidden">
+      
+      {/* Topbar Mobile */}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-border bg-card/50 backdrop-blur-xl z-50 sticky top-0">
+        <h2 className="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5" /> {profile?.tenants?.name || 'Sua Empresa'}
+        </h2>
+        <Button variant="ghost" size="icon" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </Button>
+      </div>
+
       {/* Sidebar Tenant */}
-      <aside className="w-64 border-r border-border bg-card/50 backdrop-blur-xl flex flex-col">
-        <div className="p-6">
+      <aside className={`w-full md:w-64 border-r border-border bg-background md:bg-card/50 backdrop-blur-xl flex-col absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0 flex' : '-translate-x-full md:translate-x-0 hidden md:flex'} top-[73px] md:top-0`}>
+        <div className="p-6 hidden md:block">
           <h2 className="text-xl font-bold tracking-tight text-primary flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5" /> {profile?.tenants?.name || 'Sua Empresa'}
           </h2>
@@ -255,6 +223,9 @@ export default function TenantDashboard() {
           <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/financeiro')}>
             <DollarSign className="w-4 h-4" /> Financeiro
           </Button>
+          <Button variant="secondary" className="w-full justify-start gap-2 text-foreground" onClick={() => navigate('/configuracoes')}>
+            <Settings className="w-4 h-4" /> Configurações
+          </Button>
         </nav>
         <div className="p-4 border-t border-border">
           <Button variant="ghost" className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleLogout}>
@@ -264,25 +235,35 @@ export default function TenantDashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto">
-        <div className="mb-8 flex justify-between items-center">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+        <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Dashboard</h1>
             <p className="text-muted-foreground mt-1">Resumo das suas operações.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <span className="text-sm font-medium text-muted-foreground">Período:</span>
             <Input 
               type="date" 
-              className="w-auto h-10" 
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-auto h-10 dark:[color-scheme:dark] text-foreground" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
+            <span className="text-sm font-medium text-muted-foreground">até</span>
+            <Input 
+              type="date" 
+              className="w-auto h-10 dark:[color-scheme:dark] text-foreground" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <Button variant="secondary" onClick={() => loadMetrics()} className="h-10">
+              Filtrar
+            </Button>
           </div>
         </div>
 
         {/* Resumo Rápido */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
           <Card>
             <CardHeader className="pb-2">
               <CardDescription>Vendas de Hoje</CardDescription>
@@ -333,7 +314,7 @@ export default function TenantDashboard() {
         {/* Acesso Rápido (Funções do Site) */}
         <div className="mb-8">
           <h2 className="text-xl font-bold mb-4">Acesso Rápido</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
             <Card className="cursor-pointer border-border hover:border-primary transition-all hover:bg-primary/5 shadow-sm" onClick={() => navigate('/pdv')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
                 <div className="p-3 bg-primary/10 rounded-full text-primary">
@@ -381,78 +362,19 @@ export default function TenantDashboard() {
                 </div>
               </CardContent>
             </Card>
+
+            <Card className="cursor-pointer border-border hover:border-zinc-500 transition-all hover:bg-zinc-500/5 shadow-sm" onClick={() => navigate('/configuracoes')}>
+              <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
+                <div className="p-3 bg-zinc-500/10 rounded-full text-zinc-500">
+                  <Settings className="w-8 h-8" />
+                </div>
+                <div className="text-center">
+                  <h3 className="font-semibold">Ajustes</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Empresa</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </div>
-
-        {/* Configurações da Vitrine Virtual */}
-        <div className="mb-8">
-          <Card className="border-border border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Store className="w-5 h-5 text-primary" /> Minha Vitrine Virtual
-              </CardTitle>
-              <CardDescription>
-                Configure sua loja pública para que seus clientes façam reservas de produtos pelo WhatsApp.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Nome do Link (URL da Loja)</label>
-                  <div className="flex">
-                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-input bg-muted text-muted-foreground text-sm">
-                      seusite.com/loja/
-                    </span>
-                    <Input 
-                      className="rounded-l-none" 
-                      placeholder="minha-loja" 
-                      value={storeSlug}
-                      onChange={(e) => setStoreSlug(e.target.value)}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">Sem espaços, apenas letras minúsculas e traços.</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Número do WhatsApp</label>
-                  <Input 
-                    placeholder="Ex: 5511999999999" 
-                    value={whatsappNumber}
-                    onChange={(e) => setWhatsappNumber(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Número que receberá os pedidos. Inclua código do país e DDD.</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">Mensagem de Boas-vindas</label>
-                  <Input 
-                    placeholder="Ex: Bem-vindo ao Catálogo Oficial da Loja X!" 
-                    value={storeDescription}
-                    onChange={(e) => setStoreDescription(e.target.value)}
-                  />
-                </div>
-
-                {storeSlug && (
-                  <div className="p-4 bg-background rounded-md border border-border mt-4">
-                    <p className="text-sm font-medium mb-2">Seu Link Público:</p>
-                    <a href={storeUrl} target="_blank" rel="noreferrer" className="text-primary font-bold break-all hover:underline flex items-center gap-2 mb-3">
-                      {storeUrl} <ExternalLink className="w-4 h-4" />
-                    </a>
-                    <Button variant="secondary" size="sm" onClick={copyToClipboard}>
-                      <Copy className="w-4 h-4 mr-2" /> Copiar Link
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-            <CardFooter className="border-t border-border pt-4">
-              <Button onClick={handleSaveStorefront} disabled={savingStore}>
-                {savingStore ? "Salvando..." : "Salvar Configurações da Vitrine"}
-              </Button>
-            </CardFooter>
-          </Card>
         </div>
 
         <Card className="border-border">
@@ -460,8 +382,8 @@ export default function TenantDashboard() {
             <CardTitle>Vendas Recentes</CardTitle>
             <CardDescription>Últimas 10 transações realizadas no PDV ou aprovadas da internet.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="rounded-md border">
+          <CardContent className="p-0 overflow-x-auto">
+            <div className="min-w-[800px] border-0">
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted/50 border-b">
                   <tr>
@@ -517,8 +439,8 @@ export default function TenantDashboard() {
         <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-4 text-xs font-mono">
           <div className="text-center mb-4">
             <h2 className="text-lg font-bold">{receiptData.tenant.toUpperCase()}</h2>
-            <p>CNPJ: 00.000.000/0001-00</p>
-            <p>Rua Exemplo, 123 - Centro</p>
+            <p>CNPJ: {profile?.tenants?.document || '00.000.000/0001-00'}</p>
+            <p>{profile?.tenants?.address || 'Endereço da Loja'}</p>
             <p>====================================</p>
             <h3 className="font-bold mt-2">CUPOM NÃO FISCAL - VIA LOJA</h3>
             <p>Data: {receiptData.date}</p>

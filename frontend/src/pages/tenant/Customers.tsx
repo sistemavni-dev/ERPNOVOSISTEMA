@@ -11,6 +11,8 @@ export default function Customers() {
   const [pendingOrders, setPendingOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [tenantPlan, setTenantPlan] = useState<string | null>(null)
+  const [search] = useState("")
   const navigate = useNavigate()
 
   // Form states
@@ -20,9 +22,18 @@ export default function Customers() {
   const [phone, setPhone] = useState("")
 
   useEffect(() => {
+    fetchTenantData()
     fetchCustomers()
     fetchPendingOrders()
   }, [])
+
+  const fetchTenantData = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase.from('tenants').select('plan').eq('id', user.id).single()
+      if (data) setTenantPlan(data.plan)
+    }
+  }
 
   const fetchCustomers = async () => {
     setLoading(true)
@@ -127,32 +138,39 @@ export default function Customers() {
       return
     }
 
-    // Dispara o Webhook avisando o cliente
-    supabase.functions.invoke('whatsapp-webhook', { 
-      body: { 
-        type: webhookType,
-        sale_id: orderId, 
-        customer_name: customerName,
-        customer_phone: customerPhone
-      } 
-    }).catch(console.error)
+    // Dispara o Webhook avisando o cliente apenas se o plano for OURO
+    if (tenantPlan === 'ouro') {
+      supabase.functions.invoke('whatsapp-webhook', { 
+        body: { 
+          type: webhookType,
+          sale_id: orderId, 
+          customer_name: customerName,
+          customer_phone: customerPhone
+        } 
+      }).catch(console.error)
+    }
 
     alert(alertMessage)
     
     setApprovingId(null)
-    fetchPendingOrders() // Atualiza a lista
+    fetchPendingOrders()
   }
 
+  const filteredCustomers = customers.filter(c => 
+    c.name?.toLowerCase().includes(search.toLowerCase()) || 
+    c.document?.includes(search)
+  )
+
   return (
-    <div className="p-8 bg-background min-h-screen dark text-foreground overflow-y-auto">
+    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Users className="w-8 h-8 text-primary" /> CRM & Pedidos Online
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <Users className="w-6 h-6 md:w-8 md:h-8 text-primary" /> CRM & Pedidos Online
             </h1>
             <p className="text-muted-foreground mt-1">Gerencie a base de clientes e aprove reservas da Vitrine Virtual.</p>
           </div>
@@ -160,8 +178,6 @@ export default function Customers() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Painel Esquerdo (Formulário) */}
         <div className="lg:col-span-1 space-y-8">
           <Card className="border-border">
             <CardHeader>
@@ -207,8 +223,8 @@ export default function Customers() {
                 Aprove os pedidos feitos pelos clientes na internet para confirmar a venda.
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="rounded-b-md border-t border-border">
+            <CardContent className="p-0 md:p-6 overflow-x-auto">
+              <div className="min-w-[800px] border-0 md:rounded-b-md md:border-t md:border-border">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted/30 border-b">
                     <tr>
@@ -292,8 +308,8 @@ export default function Customers() {
               <CardTitle>Carteira de Clientes</CardTitle>
               <CardDescription>Todos os clientes físicos e os vindos da internet.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
+            <CardContent className="p-0 md:p-6 overflow-x-auto">
+              <div className="min-w-[800px] border-0 md:rounded-md md:border mt-4 md:mt-0">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted/50 border-b">
                     <tr>
@@ -305,7 +321,7 @@ export default function Customers() {
                     </tr>
                   </thead>
                   <tbody>
-                    {customers.map((c) => (
+                    {filteredCustomers.map((c) => (
                       <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20">
                         <td className="px-4 py-3 font-medium">{c.name}</td>
                         <td className="px-4 py-3 text-muted-foreground">

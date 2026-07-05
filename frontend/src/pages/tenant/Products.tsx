@@ -87,15 +87,15 @@ export default function Products() {
   }
 
   return (
-    <div className="p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Package className="w-8 h-8 text-primary" /> Produtos e Estoque
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <Package className="w-6 h-6 md:w-8 md:h-8 text-primary" /> Produtos e Estoque
             </h1>
             <p className="text-muted-foreground mt-1">Gerencie seu catálogo de produtos.</p>
           </div>
@@ -169,18 +169,18 @@ export default function Products() {
 
         <div className="lg:col-span-2">
           <Card className="border-border">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between pb-2 gap-4">
               <div className="space-y-1">
                 <CardTitle>Lista de Produtos</CardTitle>
                 <CardDescription>Itens cadastrados no sistema.</CardDescription>
               </div>
-              <div className="relative w-64">
+              <div className="relative w-full md:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input type="search" placeholder="Buscar..." className="pl-8" />
+                <Input type="search" placeholder="Buscar..." className="pl-8 w-full" />
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border mt-4">
+            <CardContent className="p-0 md:p-6 overflow-x-auto">
+              <div className="min-w-[800px] border-0 md:rounded-md md:border mt-4">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted/50 border-b">
                     <tr>

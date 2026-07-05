@@ -2,25 +2,39 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../../components/ui/card"
 import { CheckCircle, XCircle, LogOut, Users, Settings, Database } from "lucide-react"
 
 interface Tenant {
   id: string
   name: string
   document: string
-  status: 'pending' | 'active' | 'defaulting' | 'blocked'
+  status: 'pending' | 'active' | 'defaulting' | 'blocked' | 'inactive'
+  plan: 'prata' | 'ouro' | null
   created_at: string
 }
 
 export default function SuperAdminDashboard() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [password, setPassword] = useState("")
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetchTenants()
-  }, [])
+    if (isAuthenticated) {
+      fetchTenants()
+    }
+  }, [isAuthenticated])
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (password === "admin123") {
+      setIsAuthenticated(true)
+    } else {
+      alert("Senha incorreta!")
+    }
+  }
 
   const fetchTenants = async () => {
     setLoading(true)
@@ -53,6 +67,38 @@ export default function SuperAdminDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     navigate('/login')
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground dark p-4">
+        <Card className="w-full max-w-md border-border">
+          <CardHeader>
+            <CardTitle className="text-2xl flex items-center gap-2 text-primary">
+              <Database className="w-6 h-6" /> NexERP Admin
+            </CardTitle>
+            <CardDescription>Área restrita. Digite a senha mestra.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleLogin}>
+            <CardContent>
+              <div className="space-y-2">
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Senha (admin123)"
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background"
+                  required
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" className="w-full">Entrar</Button>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -104,7 +150,7 @@ export default function SuperAdminDashboard() {
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="px-4 py-3 font-medium">Empresa</th>
-                      <th className="px-4 py-3 font-medium">Documento</th>
+                      <th className="px-4 py-3 font-medium">Plano</th>
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium">Data Cadastro</th>
                       <th className="px-4 py-3 font-medium text-right">Ações</th>
@@ -113,8 +159,19 @@ export default function SuperAdminDashboard() {
                   <tbody>
                     {tenants.map((tenant) => (
                       <tr key={tenant.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
-                        <td className="px-4 py-3 font-medium">{tenant.name}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{tenant.document || 'N/A'}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {tenant.name}
+                          <div className="text-xs text-muted-foreground font-normal">{tenant.document || 'Sem CNPJ'}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {tenant.plan === 'ouro' ? (
+                            <span className="font-bold text-yellow-500 uppercase text-xs">Ouro</span>
+                          ) : tenant.plan === 'prata' ? (
+                            <span className="font-bold text-zinc-400 uppercase text-xs">Prata</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Nenhum</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
                             ${tenant.status === 'active' ? 'bg-green-500/10 text-green-500' : ''}

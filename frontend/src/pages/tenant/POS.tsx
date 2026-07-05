@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent } from "../../components/ui/card"
-import { ShoppingCart, Search, Plus, Minus, Trash, CheckCircle, FileText, User, Printer, ArrowLeft, Package } from "lucide-react"
+import { ShoppingCart, Search, Plus, Minus, Trash, CheckCircle, FileText, User, Printer, ArrowLeft, Package, ChevronUp } from "lucide-react"
 
 interface Product {
   id: string
@@ -29,6 +29,7 @@ interface Customer {
 export default function POS() {
   const [products, setProducts] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [tenant, setTenant] = useState<any>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(false)
@@ -43,13 +44,26 @@ export default function POS() {
   // Estados de Pagamento
   const [paymentMethod, setPaymentMethod] = useState("money")
   const [installmentPlan, setInstallmentPlan] = useState("1")
+  
+  // Mobile Cart State
+  const [isCartOpen, setIsCartOpen] = useState(false)
 
   const navigate = useNavigate()
 
   useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: tenantData } = await supabase.from('tenants').select('*').eq('id', user.id).single()
+      setTenant(tenantData)
+    }
+    
     fetchProducts()
     fetchCustomers()
-  }, [])
+  }
 
   const fetchProducts = async () => {
     const { data } = await supabase.from('products').select('*').limit(20)
@@ -217,6 +231,7 @@ export default function POS() {
 
     // 6. Preparar Recibo Não Fiscal
     setReceiptData({
+      tenant,
       saleId: sale.id.slice(0, 8),
       date: new Date().toLocaleString('pt-BR'),
       items: [...cart],
@@ -242,7 +257,7 @@ export default function POS() {
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search))
 
   return (
-    <div className="flex h-screen bg-background dark text-foreground overflow-hidden">
+    <div className="flex flex-col md:flex-row h-screen bg-background dark text-foreground overflow-hidden relative">
       
       {/* CSS para Impressão */}
       <style>{`
@@ -255,16 +270,16 @@ export default function POS() {
       `}</style>
 
       {/* Catálogo de Produtos */}
-      <div className="flex-1 flex flex-col p-6 overflow-hidden no-print">
-        <div className="flex items-center gap-4 mb-6">
+      <div className={`flex-1 flex flex-col p-4 md:p-6 overflow-hidden no-print ${isCartOpen ? 'hidden md:flex' : 'flex'}`}>
+        <div className="flex items-center gap-4 mb-4 md:mb-6">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
             <ArrowLeft className="w-6 h-6" />
           </Button>
-          <h1 className="text-3xl font-bold tracking-tight">Ponto de Venda (PDV)</h1>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">PDV</h1>
         </div>
         
-        <div className="flex gap-4 mb-6">
-          <div className="relative flex-1">
+        <div className="flex flex-col md:flex-row gap-4 mb-4 md:mb-6">
+          <div className="relative w-full">
             <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
             <Input 
               placeholder="Buscar por código de barras, SKU ou Nome..." 
@@ -274,9 +289,9 @@ export default function POS() {
             />
           </div>
           <div className="relative w-[300px]">
-            <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
+            <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground pointer-events-none" />
             <select 
-              className="w-full h-12 pl-10 pr-3 rounded-md border border-input bg-background text-sm cursor-pointer"
+              className="w-full h-12 pl-10 pr-3 rounded-md border border-input bg-background text-sm cursor-pointer appearance-none"
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
             >
@@ -317,14 +332,27 @@ export default function POS() {
             )}
           </div>
         </div>
+        {/* Botão flutuante mobile para abrir carrinho */}
+        <div className="md:hidden mt-auto pt-4 pb-2">
+          <Button 
+            className="w-full h-14 text-lg font-bold shadow-xl shadow-primary/20 flex items-center justify-between px-6" 
+            onClick={() => setIsCartOpen(true)}
+          >
+            <span className="flex items-center gap-2"><ShoppingCart className="w-5 h-5" /> Carrinho ({cart.reduce((a,b) => a + b.cartQuantity, 0)})</span>
+            <span>{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalAmount)}</span>
+          </Button>
+        </div>
       </div>
 
       {/* Carrinho / Checkout */}
-      <div className="w-[450px] border-l border-border bg-card/30 backdrop-blur-md flex flex-col no-print">
-        <div className="p-6 border-b border-border bg-card/50">
+      <div className={`w-full md:w-[450px] border-l border-border bg-card/30 backdrop-blur-md flex-col no-print absolute md:relative z-50 h-full transition-transform duration-300 ${isCartOpen ? 'translate-y-0 flex' : 'translate-y-full md:translate-y-0 md:flex'} bottom-0`}>
+        <div className="p-4 md:p-6 border-b border-border bg-card/50 flex justify-between items-center">
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5" /> Carrinho Atual
+            <ShoppingCart className="w-5 h-5" /> Carrinho
           </h2>
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setIsCartOpen(false)}>
+            <ChevronUp className="w-6 h-6 rotate-180" />
+          </Button>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -458,9 +486,9 @@ export default function POS() {
       {receiptData && (
         <div id="receipt-modal" className="fixed top-0 left-0 bg-white text-black p-6 w-[80mm] z-[-1] font-mono text-sm leading-tight">
           <div className="text-center mb-4 border-b border-black pb-2 border-dashed">
-            <h2 className="font-bold text-xl uppercase mb-1">NexERP Cloud</h2>
-            <p>SISTEMA DE GESTÃO EMPRESARIAL</p>
-            <p>CNPJ: 00.000.000/0001-00</p>
+            <h2 className="font-bold text-xl uppercase mb-1">{receiptData.tenant?.name || 'Sua Empresa'}</h2>
+            <p>{receiptData.tenant?.address || 'Endereço não cadastrado'}</p>
+            <p>CNPJ: {receiptData.tenant?.document || '00.000.000/0001-00'}</p>
             <br/>
             <h3 className="font-bold">CUPOM NÃO FISCAL</h3>
             <p>Pedido: #{receiptData.saleId}</p>

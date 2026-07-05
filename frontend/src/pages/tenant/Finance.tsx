@@ -8,6 +8,7 @@ import { DollarSign, ArrowUpRight, ArrowDownRight, Clock, ArrowLeft, Plus } from
 
 export default function Finance() {
   const [transactions, setTransactions] = useState<any[]>([])
+  const [customers, setCustomers] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [metrics, setMetrics] = useState({ receivables: 0, payables: 0, balance: 0, pendingReceivables: 0 })
   const navigate = useNavigate()
@@ -18,25 +19,34 @@ export default function Finance() {
   const [formAmount, setFormAmount] = useState("")
   const [formDueDate, setFormDueDate] = useState("")
   const [formStatus, setFormStatus] = useState("pending")
+  const [formCustomer, setFormCustomer] = useState("")
 
   useEffect(() => {
-    fetchTransactions()
+    fetchData()
   }, [])
 
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     setLoading(true)
     
+    // Busca Clientes
+    const { data: custData } = await supabase.from('customers').select('id, name').order('name')
+    if (custData) setCustomers(custData)
+
+    fetchTransactions()
+  }
+
+  const fetchTransactions = async () => {
     // Busca transações manuais
     const { data: finData, error: finError } = await supabase
       .from('financial_transactions')
-      .select('*')
+      .select('*, customers(name)')
       
     if (finError) console.error(finError)
     
     // Busca Vendas do PDV/Vitrine
     const { data: salesData, error: salesError } = await supabase
       .from('sales')
-      .select('*')
+      .select('*, customers(name)')
       
     if (salesError) console.error(salesError)
     
@@ -53,7 +63,8 @@ export default function Finance() {
         status: sale.status,
         category: 'Venda Rápida PDV',
         due_date: sale.created_at,
-        created_at: sale.created_at
+        created_at: sale.created_at,
+        customers: sale.customers
       }))
 
     // Junta tudo e ordena por data mais recente
@@ -85,7 +96,8 @@ export default function Finance() {
       type: formType,
       amount: parseFloat(formAmount),
       due_date: formDueDate || new Date().toISOString().split('T')[0],
-      status: formStatus
+      status: formStatus,
+      customer_id: formCustomer || null
     }])
     if (error) {
       alert("Erro ao adicionar lançamento: " + error.message)
@@ -93,26 +105,32 @@ export default function Finance() {
       setFormCategory("")
       setFormAmount("")
       setFormDueDate("")
+      setFormCustomer("")
       fetchTransactions()
     }
     setLoading(false)
   }
 
-  const markAsPaid = async (id: string, sale_id?: string) => {
-    // 1. Marca a parcela atual como paga
-    await supabase.from('financial_transactions').update({ status: 'paid' }).eq('id', id)
-    
-    // 2. Se essa parcela pertence a uma venda (A Prazo), verifica se todas foram pagas
-    if (sale_id) {
-      const { data: allInstallments } = await supabase
-        .from('financial_transactions')
-        .select('status')
-        .eq('sale_id', sale_id)
+  const markAsPaid = async (id: string, sale_id?: string, isLegacySale?: boolean) => {
+    if (isLegacySale) {
+      // É uma venda antiga/fallback que não tem parcelas explícitas
+      await supabase.from('sales').update({ status: 'paid' }).eq('id', id)
+    } else {
+      // 1. Marca a parcela atual como paga
+      await supabase.from('financial_transactions').update({ status: 'paid' }).eq('id', id)
       
-      // Se todas estiverem 'paid', atualiza o status da sale para 'paid'
-      const allPaid = allInstallments?.every(inst => inst.status === 'paid')
-      if (allPaid) {
-        await supabase.from('sales').update({ status: 'paid' }).eq('id', sale_id)
+      // 2. Se essa parcela pertence a uma venda (A Prazo), verifica se todas foram pagas
+      if (sale_id) {
+        const { data: allInstallments } = await supabase
+          .from('financial_transactions')
+          .select('status')
+          .eq('sale_id', sale_id)
+        
+        // Se todas estiverem 'paid', atualiza o status da sale para 'paid'
+        const allPaid = allInstallments?.every(inst => inst.status === 'paid')
+        if (allPaid) {
+          await supabase.from('sales').update({ status: 'paid' }).eq('id', sale_id)
+        }
       }
     }
 
@@ -120,15 +138,15 @@ export default function Finance() {
   }
 
   return (
-    <div className="p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <DollarSign className="w-8 h-8 text-primary" /> Financeiro
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+              <DollarSign className="w-6 h-6 md:w-8 md:h-8 text-primary" /> Financeiro
             </h1>
             <p className="text-muted-foreground mt-1">Fluxo de caixa e contas a pagar/receber.</p>
           </div>
@@ -183,9 +201,23 @@ export default function Finance() {
             </CardHeader>
             <form onSubmit={handleAddTransaction}>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Categoria / Descrição</label>
-                  <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} required placeholder="Ex: Conta de Luz, Fornecedor" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Categoria / Descrição</label>
+                    <Input value={formCategory} onChange={e => setFormCategory(e.target.value)} required placeholder="Ex: Conta de Luz, Venda Manual" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Cliente (Opcional)</label>
+                    <select 
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={formCustomer} onChange={e => setFormCustomer(e.target.value)}
+                    >
+                      <option value="">Nenhum / Não aplicável</option>
+                      {customers.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -233,17 +265,19 @@ export default function Finance() {
         {/* Painel Direito: Histórico */}
         <div className="lg:col-span-2">
           <Card className="border-border">
-            <CardHeader>
-              <CardTitle>Histórico de Transações</CardTitle>
-              <CardDescription>Lançamentos manuais e automáticos (via PDV).</CardDescription>
+            <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between pb-2 gap-4">
+              <div className="space-y-1">
+                <CardTitle>Histórico de Lançamentos</CardTitle>
+                <CardDescription>Todas as entradas e saídas registradas.</CardDescription>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
+            <CardContent className="p-0 md:p-6 overflow-x-auto">
+              <div className="min-w-[800px] border-0 md:rounded-md md:border mt-4">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted/50 border-b">
                     <tr>
                       <th className="px-4 py-3 font-medium">Data / Vencimento</th>
-                      <th className="px-4 py-3 font-medium">Categoria</th>
+                      <th className="px-4 py-3 font-medium">Descrição / Cliente</th>
                       <th className="px-4 py-3 font-medium">Tipo</th>
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium text-right">Valor</th>
@@ -256,7 +290,10 @@ export default function Finance() {
                         <td className="px-4 py-3 text-muted-foreground">
                           {new Date(t.due_date).toLocaleDateString('pt-BR')}
                         </td>
-                        <td className="px-4 py-3 font-medium">{t.category || 'Sem Categoria'}</td>
+                        <td className="px-4 py-3 font-medium">
+                          {t.category || 'Sem Categoria'}
+                          {t.customers?.name && <span className="block text-xs text-muted-foreground mt-0.5">Ref: {t.customers.name}</span>}
+                        </td>
                         <td className="px-4 py-3">
                           {t.type === 'receivable' ? (
                             <span className="text-green-500 font-medium">Entrada</span>
@@ -283,8 +320,13 @@ export default function Finance() {
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.amount)}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {t.status === 'pending' && t.category !== 'Vendas PDV/Online' && (
-                            <Button size="sm" variant="outline" className="h-8" onClick={() => markAsPaid(t.id, t.sale_id)}>
+                          {t.status === 'pending' && (
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-8" 
+                              onClick={() => markAsPaid(t.id, t.sale_id, t.category === 'Venda Rápida PDV')}
+                            >
                               Dar Baixa
                             </Button>
                           )}
