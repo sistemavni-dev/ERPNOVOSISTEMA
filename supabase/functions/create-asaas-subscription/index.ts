@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+async function safeJson(res: Response) {
+  if (!res.ok || res.redirected) return null
+  try {
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -66,11 +75,9 @@ serve(async (req) => {
       headers: { 'access_token': asaasKey }
     })
     
-    if (searchRes.ok) {
-      const searchData = await searchRes.json()
-      if (searchData.data && searchData.data.length > 0) {
-        customerId = searchData.data[0].id
-      }
+    const searchData = await safeJson(searchRes)
+    if (searchData && searchData.data && searchData.data.length > 0) {
+      customerId = searchData.data[0].id
     }
 
     // 2. Criar cliente caso não exista
@@ -89,25 +96,33 @@ serve(async (req) => {
         })
       })
 
-      if (!createCustRes.ok) {
+      if (!createCustRes.ok || createCustRes.redirected) {
         let errText = ""
-        try {
-          const cloneRes = createCustRes.clone()
-          const errData = await cloneRes.json()
-          if (errData.errors && errData.errors.length > 0) {
-            errText = errData.errors.map((e: any) => e.description).join(", ")
-          } else {
-            errText = JSON.stringify(errData)
+        if (createCustRes.redirected) {
+          errText = `Requisição redirecionada para ${createCustRes.url}. Verifique se a sua chave ASAAS_API_KEY ou a URL estão corretas no Supabase.`
+        } else {
+          try {
+            const cloneRes = createCustRes.clone()
+            const errData = await cloneRes.json()
+            if (errData.errors && errData.errors.length > 0) {
+              errText = errData.errors.map((e: any) => e.description).join(", ")
+            } else {
+              errText = JSON.stringify(errData)
+            }
+          } catch {
+            const rawText = await createCustRes.text()
+            errText = rawText || "Sem resposta detalhada do servidor."
           }
-        } catch {
-          const rawText = await createCustRes.text()
-          errText = rawText || "Sem resposta detalhada do servidor."
         }
         throw new Error(`Erro ao criar cliente no Asaas (Código ${createCustRes.status}): ${errText}`)
       }
 
-      const newCust = await createCustRes.json()
-      customerId = newCust.id
+      const newCust = await safeJson(createCustRes)
+      if (newCust && newCust.id) {
+        customerId = newCust.id
+      } else {
+        throw new Error("Erro ao interpretar dados do cliente criado no Asaas.")
+      }
     }
 
     // 3. Definir valor do plano
@@ -141,24 +156,31 @@ serve(async (req) => {
       })
     })
 
-    if (!subRes.ok) {
+    if (!subRes.ok || subRes.redirected) {
       let errText = ""
-      try {
-        const cloneRes = subRes.clone()
-        const errData = await cloneRes.json()
-        if (errData.errors && errData.errors.length > 0) {
-          errText = errData.errors.map((e: any) => e.description).join(", ")
-        } else {
-          errText = JSON.stringify(errData)
+      if (subRes.redirected) {
+        errText = `Requisição redirecionada para ${subRes.url}. Verifique se a sua chave ASAAS_API_KEY ou a URL estão corretas no Supabase.`
+      } else {
+        try {
+          const cloneRes = subRes.clone()
+          const errData = await cloneRes.json()
+          if (errData.errors && errData.errors.length > 0) {
+            errText = errData.errors.map((e: any) => e.description).join(", ")
+          } else {
+            errText = JSON.stringify(errData)
+          }
+        } catch {
+          const rawText = await subRes.text()
+          errText = rawText || "Sem resposta detalhada do servidor."
         }
-      } catch {
-        const rawText = await subRes.text()
-        errText = rawText || "Sem resposta detalhada do servidor."
       }
       throw new Error(`Erro ao criar assinatura no Asaas (Código ${subRes.status}): ${errText}`)
     }
 
-    const subData = await subRes.json()
+    const subData = await safeJson(subRes)
+    if (!subData || !subData.id) {
+      throw new Error("Erro ao interpretar dados da assinatura criada no Asaas.")
+    }
     const subscriptionId = subData.id
 
     // 5. Buscar a cobrança gerada para obter QR Code, Chave PIX ou dados do Boleto/Cartão
@@ -170,23 +192,21 @@ serve(async (req) => {
     let pixQrCodeImage = ''
     let invoiceUrl = ''
 
-    if (paymentsRes.ok) {
-      const paymentsData = await paymentsRes.json()
-      if (paymentsData.data && paymentsData.data.length > 0) {
-        const paymentId = paymentsData.data[0].id
-        invoiceUrl = paymentsData.data[0].invoiceUrl
+    const paymentsData = await safeJson(paymentsRes)
+    if (paymentsData && paymentsData.data && paymentsData.data.length > 0) {
+      const paymentId = paymentsData.data[0].id
+      invoiceUrl = paymentsData.data[0].invoiceUrl
 
-        // Gerar QR Code PIX apenas se for PIX
-        if (billingType === 'PIX') {
-          const pixRes = await fetch(`${asaasUrl}/payments/${paymentId}/pixQrCode`, {
-            headers: { 'access_token': asaasKey }
-          })
+      // Gerar QR Code PIX apenas se for PIX
+      if (billingType === 'PIX') {
+        const pixRes = await fetch(`${asaasUrl}/payments/${paymentId}/pixQrCode`, {
+          headers: { 'access_token': asaasKey }
+        })
 
-          if (pixRes.ok) {
-            const pixData = await pixRes.json()
-            pixCode = pixData.payload
-            pixQrCodeImage = pixData.encodedImage
-          }
+        const pixData = await safeJson(pixRes)
+        if (pixData) {
+          pixCode = pixData.payload
+          pixQrCodeImage = pixData.encodedImage
         }
       }
     }
