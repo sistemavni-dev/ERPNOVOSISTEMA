@@ -3,6 +3,6 @@
   "outputDirectory": "frontend/dist",
   "cleanUrls": true,
   "rewrites": [
-    { "source": "/:path*", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
