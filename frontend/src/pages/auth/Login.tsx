@@ -111,6 +111,9 @@ export default function Login() {
             <div className="text-center text-sm text-zinc-400">
               Não possui uma conta? <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-semibold" onClick={() => navigate('/register')}>Cadastre-se</Button>
             </div>
+            <div className="w-full border-t border-white/5 my-2 pt-2 text-center">
+              <Button variant="link" className="p-0 h-auto text-zinc-500 hover:text-zinc-400 text-xs font-mono" onClick={() => navigate('/super-admin')}>Acessar Super Admin</Button>
+            </div>
           </CardFooter>
         </form>
       </Card>

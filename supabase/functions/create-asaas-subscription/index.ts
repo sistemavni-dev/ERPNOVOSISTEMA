@@ -218,6 +218,7 @@ serve(async (req) => {
         asaas_customer_id: customerId,
         asaas_subscription_id: subscriptionId,
         subscription_status: 'pending',
+        status: 'pending',
         plan: plan
       })
       .eq('id', tenantId)

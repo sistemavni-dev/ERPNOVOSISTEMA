@@ -297,6 +297,11 @@ export default function TenantDashboard() {
               <Settings className="w-4 h-4" /> Configurações
             </Button>
           )}
+          {profile?.tenants?.role !== 'cashier' && (
+            <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/planos')}>
+              <Crown className="w-4 h-4 text-yellow-400" /> Planos & Assinatura
+            </Button>
+          )}
         </nav>
         <div className="p-4 border-t border-white/5">
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10" onClick={handleLogout}>

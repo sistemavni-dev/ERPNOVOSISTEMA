@@ -2,8 +2,9 @@ import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
+import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../../components/ui/card"
-import { CheckCircle, XCircle, LogOut, Users, Database } from "lucide-react"
+import { CheckCircle, XCircle, LogOut, Users, Database, Mail, Lock } from "lucide-react"
 
 interface Tenant {
   id: string
@@ -17,15 +18,75 @@ interface Tenant {
 export default function SuperAdminDashboard() {
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
+  const [verifying, setVerifying] = useState(true)
+  const [needsAuth, setNeedsAuth] = useState(false)
+  const [email, setEmail] = useState("")
+  const [authPassword, setAuthPassword] = useState("")
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState("")
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (isAuthenticated) {
+    checkAccess()
+  }, [])
+
+  const checkAccess = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setNeedsAuth(true)
+        setVerifying(false)
+        return
+      }
+
+      const { data: isSuperAdmin } = await supabase.rpc('is_super_admin')
+      if (!isSuperAdmin) {
+        navigate('/dashboard')
+        return
+      }
+      setVerifying(false)
+    } catch (err) {
+      console.error(err)
+      setNeedsAuth(true)
+      setVerifying(false)
+    }
+  }
+
+  const handleSupabaseAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setAuthLoading(true)
+    setAuthError(null)
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: authPassword,
+    })
+
+    if (error) {
+      setAuthError(error.message)
+      setAuthLoading(false)
+      return
+    }
+
+    const { data: isSuperAdmin } = await supabase.rpc('is_super_admin')
+    if (!isSuperAdmin) {
+      setAuthError("Acesso negado: este usuário não é um Super Admin.")
+      await supabase.auth.signOut()
+      setAuthLoading(false)
+      return
+    }
+
+    setNeedsAuth(false)
+    setAuthLoading(false)
+  }
+
+  useEffect(() => {
+    if (isAuthenticated && !verifying && !needsAuth) {
       fetchTenants()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, verifying, needsAuth])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -67,6 +128,79 @@ export default function SuperAdminDashboard() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     navigate('/login')
+  }
+
+  if (verifying) {
+    return (
+      <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center font-mono">
+        Verificando permissões...
+      </div>
+    )
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 relative overflow-hidden dark text-foreground">
+        {/* Orbes Neon */}
+        <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse" />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[150px] animate-pulse" />
+
+        <Card className="w-full max-w-md bg-glass border border-white/10 shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 to-cyan-400" />
+          <CardHeader className="pt-8 text-center">
+            <CardTitle className="text-2xl font-bold flex items-center justify-center gap-2 text-white">
+              <Database className="w-6 h-6 text-purple-400" /> NexERP Admin
+            </CardTitle>
+            <CardDescription className="text-zinc-400">Entre com sua conta Super Admin.</CardDescription>
+          </CardHeader>
+          <form onSubmit={handleSupabaseAuth}>
+            <CardContent className="space-y-4">
+              {authError && (
+                <div className="p-3 text-sm bg-destructive/10 text-destructive border border-destructive/20 rounded-md">
+                  {authError}
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-zinc-400 uppercase">E-mail Administrativo</label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Input 
+                    type="email" 
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-mono text-zinc-400 uppercase">Senha da Conta</label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
+                  <Input 
+                    type="password" 
+                    value={authPassword}
+                    onChange={e => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
+                    required
+                  />
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="pb-8 pt-4 flex flex-col space-y-3">
+              <Button type="submit" className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold transition-all border-0 shadow-lg shadow-purple-500/25" disabled={authLoading}>
+                {authLoading ? "Autenticando..." : "Entrar como Admin"}
+              </Button>
+              <Button type="button" variant="ghost" className="w-full text-zinc-400 hover:text-white" onClick={() => navigate('/login')}>
+                Voltar ao Login Principal
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
+      </div>
+    )
   }
 
   if (!isAuthenticated) {

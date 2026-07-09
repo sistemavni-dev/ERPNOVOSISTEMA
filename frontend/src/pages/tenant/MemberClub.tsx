@@ -12,11 +12,27 @@ export default function MemberClub() {
   const [search, setSearch] = useState("")
   const [actionId, setActionId] = useState<string | null>(null)
   const [migrationAlert, setMigrationAlert] = useState(false)
+  const [plan, setPlan] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
+    loadProfile()
     fetchCustomers()
   }, [])
+
+  const loadProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('tenants')
+        .select('plan')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        setPlan(data.plan)
+      }
+    }
+  }
 
   const fetchCustomers = async () => {
     setLoading(true)
@@ -85,6 +101,30 @@ export default function MemberClub() {
   const clubMembersCount = customers.filter(c => c.is_club_member).length
   const nonMembersCount = customers.length - clubMembersCount
   const membershipRate = customers.length ? Math.round((clubMembersCount / customers.length) * 100) : 0
+
+  if (plan === 'prata') {
+    return (
+      <div className="p-4 md:p-8 bg-[#020617] min-h-screen dark text-foreground relative overflow-hidden flex flex-col justify-center items-center">
+        {/* Background Orbs */}
+        <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
+        <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
+
+        <div className="max-w-md text-center space-y-6 z-10">
+          <div className="p-4 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20 w-20 h-20 flex items-center justify-center mx-auto animate-pulse">
+            <Crown className="w-10 h-10" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-indigo-200 to-white bg-clip-text text-transparent">Clube de Membros VIP</h1>
+            <p className="text-zinc-500 text-sm mt-2">Esta funcionalidade exclusiva do **Plano Ouro** permite que você crie um clube de fidelidade VIP para seus clientes, com acúmulo de cashback personalizado e campanhas promocionais automatizadas.</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold h-11 border-0 shadow-lg shadow-purple-500/25" onClick={() => navigate('/planos')}>Fazer Upgrade para o Plano Ouro</Button>
+            <Button variant="ghost" className="text-zinc-400 hover:text-white" onClick={() => navigate('/dashboard')}>Voltar ao Painel</Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-4 md:p-8 bg-[#020617] min-h-screen dark text-foreground relative overflow-hidden">

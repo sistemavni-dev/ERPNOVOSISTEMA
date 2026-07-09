@@ -281,7 +281,19 @@ export default function Settings() {
                 <CardDescription>Configure as diretrizes e módulos que a Inteligência Artificial controlará no seu WhatsApp.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {plan === 'prata' ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-4 bg-slate-900/10 rounded-lg border border-dashed border-white/5">
+                    <div className="p-4 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20">
+                      <Bot className="w-12 h-12" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-white text-base">Agente Autônomo com IA Bloqueado</h3>
+                      <p className="text-zinc-500 text-xs mt-1 max-w-md">O Agente de WhatsApp Autônomo responde seus clientes, envia comprovantes e faz cobranças de forma 100% automatizada. Faça o upgrade para o Plano Ouro para ativar.</p>
+                    </div>
+                    <Button type="button" className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-purple-500/25 border-0" onClick={() => navigate('/planos')}>Fazer Upgrade para Ouro</Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Formulário do Agente */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-background">
@@ -411,6 +423,7 @@ export default function Settings() {
                     </div>
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
           </div>

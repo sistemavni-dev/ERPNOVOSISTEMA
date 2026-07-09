@@ -91,10 +91,10 @@ export default function Plans() {
         const expired = trialEnds ? trialEnds < new Date() : false
         setTrialExpired(expired)
 
-        // Se a assinatura já está ativa e paga, manda direto pro dashboard
-        if (data.subscription_status === 'active' && !expired) {
-          navigate('/dashboard')
-        }
+        // Permite visualizar a página de planos mesmo se estiver ativo
+        // if (data.subscription_status === 'active' && !expired) {
+        //   navigate('/dashboard')
+        // }
       }
     } catch (err: any) {
       console.error("Erro ao carregar status do tenant:", err)
@@ -269,11 +269,38 @@ export default function Plans() {
             </p>
           </div>
           <div className="flex gap-2">
+            {!isBlocked && (
+              <Button variant="outline" className="border-white/10 text-zinc-300 hover:bg-white/5" onClick={() => navigate('/dashboard')}>
+                Voltar ao Painel
+              </Button>
+            )}
             <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-white/5" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" /> Sair
             </Button>
           </div>
         </div>
+
+        {/* Banner do Plano Atual */}
+        {tenant && (
+          <div className="mb-8 p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-center justify-between shadow-lg">
+            <div className="flex items-center gap-3">
+              <Crown className="w-8 h-8 text-yellow-400" />
+              <div>
+                <h3 className="font-bold text-white text-sm">Seu Plano Atual: <span className="uppercase text-purple-400 font-extrabold">{tenant.plan || 'Nenhum'}</span></h3>
+                <p className="text-zinc-400 text-xs mt-0.5">Status: <span className="capitalize font-semibold text-emerald-400">
+                  {tenant.status === 'pending' && tenant.subscription_status === 'pending' 
+                    ? 'Aguardando Liberação do Administrador' 
+                    : (tenant.subscription_status === 'active' 
+                      ? 'Ativo' 
+                      : (tenant.subscription_status === 'trialing' ? 'Período de Teste (Trial)' : tenant.subscription_status))}
+                </span></p>
+              </div>
+            </div>
+            {tenant.subscription_status === 'trialing' && (
+              <span className="text-xs text-zinc-400 font-mono">Expira em: {new Date(tenant.trial_ends_at).toLocaleDateString('pt-BR')}</span>
+            )}
+          </div>
+        )}
 
         {/* Formulário / Modal de Checkout Asaas */}
         {checkoutPlan && (
