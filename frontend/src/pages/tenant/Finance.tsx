@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { DollarSign, ArrowUpRight, ArrowDownRight, Clock, ArrowLeft, Plus } from "lucide-react"
+import { DollarSign, ArrowUpRight, ArrowDownRight, Clock, ArrowLeft, Edit2, Trash2 } from "lucide-react"
 
 export default function Finance() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -20,6 +20,8 @@ export default function Finance() {
   const [formDueDate, setFormDueDate] = useState("")
   const [formStatus, setFormStatus] = useState("pending")
   const [formCustomer, setFormCustomer] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingIsLegacySale, setEditingIsLegacySale] = useState<boolean>(false)
 
   useEffect(() => {
     fetchData()
@@ -88,25 +90,93 @@ export default function Finance() {
     setLoading(false)
   }
 
+  const handleCancelEdit = () => {
+    setEditingId(null)
+    setEditingIsLegacySale(false)
+    setFormCategory("")
+    setFormAmount("")
+    setFormDueDate("")
+    setFormCustomer("")
+  }
+
+  const handleDelete = async (id: string, isLegacySale: boolean) => {
+    if (!confirm("Tem certeza que deseja excluir este lançamento?")) return
+    setLoading(true)
+    if (isLegacySale) {
+      // Deleta itens da venda e depois a venda
+      await supabase.from('sale_items').delete().eq('sale_id', id)
+      await supabase.from('sales').delete().eq('id', id)
+    } else {
+      await supabase.from('financial_transactions').delete().eq('id', id)
+    }
+    fetchTransactions()
+  }
+
+  const handleStartEdit = (t: any, isLegacySale: boolean) => {
+    setEditingId(t.id)
+    setEditingIsLegacySale(isLegacySale)
+    setFormCategory(t.category || "")
+    setFormType(t.type)
+    setFormAmount(t.amount.toString())
+    setFormDueDate(t.due_date ? t.due_date.split('T')[0] : "")
+    setFormStatus(t.status)
+    setFormCustomer(t.customer_id || "")
+  }
+
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    const { error } = await supabase.from('financial_transactions').insert([{
-      category: formCategory,
-      type: formType,
-      amount: parseFloat(formAmount),
-      due_date: formDueDate || new Date().toISOString().split('T')[0],
-      status: formStatus,
-      customer_id: formCustomer || null
-    }])
-    if (error) {
-      alert("Erro ao adicionar lançamento: " + error.message)
+
+    if (editingId) {
+      if (editingIsLegacySale) {
+        // Atualiza o valor total da venda
+        const { error } = await supabase.from('sales').update({
+          total_amount: parseFloat(formAmount),
+          customer_id: formCustomer || null
+        }).eq('id', editingId)
+
+        if (error) {
+          alert("Erro ao editar venda rápida: " + error.message)
+        } else {
+          handleCancelEdit()
+          fetchTransactions()
+        }
+      } else {
+        // Atualiza a transação financeira
+        const { error } = await supabase.from('financial_transactions').update({
+          category: formCategory,
+          type: formType,
+          amount: parseFloat(formAmount),
+          due_date: formDueDate || new Date().toISOString().split('T')[0],
+          status: formStatus,
+          customer_id: formCustomer || null
+        }).eq('id', editingId)
+
+        if (error) {
+          alert("Erro ao editar lançamento: " + error.message)
+        } else {
+          handleCancelEdit()
+          fetchTransactions()
+        }
+      }
     } else {
-      setFormCategory("")
-      setFormAmount("")
-      setFormDueDate("")
-      setFormCustomer("")
-      fetchTransactions()
+      const { error } = await supabase.from('financial_transactions').insert([{
+        category: formCategory,
+        type: formType,
+        amount: parseFloat(formAmount),
+        due_date: formDueDate || new Date().toISOString().split('T')[0],
+        status: formStatus,
+        customer_id: formCustomer || null
+      }])
+      if (error) {
+        alert("Erro ao adicionar lançamento: " + error.message)
+      } else {
+        setFormCategory("")
+        setFormAmount("")
+        setFormDueDate("")
+        setFormCustomer("")
+        fetchTransactions()
+      }
     }
     setLoading(false)
   }
@@ -196,8 +266,10 @@ export default function Finance() {
         <div className="lg:col-span-1">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle>Novo Lançamento</CardTitle>
-              <CardDescription>Adicione uma receita ou despesa manual.</CardDescription>
+              <CardTitle>{editingId ? "Editar Lançamento" : "Novo Lançamento"}</CardTitle>
+              <CardDescription>
+                {editingId ? "Atualize as informações do lançamento selecionado." : "Adicione uma receita ou despesa manual."}
+              </CardDescription>
             </CardHeader>
             <form onSubmit={handleAddTransaction}>
               <CardContent className="space-y-4">
@@ -254,9 +326,16 @@ export default function Finance() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full mt-2" disabled={loading}>
-                  <Plus className="w-4 h-4 mr-2" /> Salvar Lançamento
-                </Button>
+                <div className="flex gap-2 mt-2">
+                  <Button type="submit" className="flex-1" disabled={loading}>
+                    {editingId ? "Atualizar Lançamento" : "Salvar Lançamento"}
+                  </Button>
+                  {editingId && (
+                    <Button type="button" variant="outline" onClick={handleCancelEdit}>
+                      Cancelar
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </form>
           </Card>
@@ -319,7 +398,7 @@ export default function Finance() {
                         <td className="px-4 py-3 text-right font-bold">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(t.amount)}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 text-right flex items-center justify-end gap-2">
                           {t.status === 'pending' && (
                             <Button 
                               size="sm" 
@@ -330,6 +409,12 @@ export default function Finance() {
                               Dar Baixa
                             </Button>
                           )}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => handleStartEdit(t, t.category === 'Venda Rápida PDV')} title="Editar Lançamento">
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/20" onClick={() => handleDelete(t.id, t.category === 'Venda Rápida PDV')} title="Excluir Lançamento">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </td>
                       </tr>
                     ))}

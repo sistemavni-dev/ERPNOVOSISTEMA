@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { Users, Plus, Trash2, CheckCircle, Clock, ArrowLeft, Wallet } from "lucide-react"
+import { Users, Plus, Trash2, CheckCircle, Clock, ArrowLeft, Wallet, Crown, MessageSquare, Sparkles } from "lucide-react"
 
 export default function Customers() {
   const [customers, setCustomers] = useState<any[]>([])
@@ -105,6 +105,36 @@ export default function Customers() {
     } else {
       fetchCustomers()
     }
+  }
+
+  const toggleClubMembership = async (id: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('customers')
+      .update({ is_club_member: !currentStatus })
+      .eq('id', id)
+
+    if (error) {
+      alert("Erro ao alterar status no Clube de Membros: " + error.message)
+    } else {
+      fetchCustomers()
+    }
+  }
+
+  const sendWhatsAppReminder = (phone: string, name: string, type: 'cobrança' | 'vip') => {
+    if (!phone) {
+      alert("Este cliente não possui telefone cadastrado.")
+      return
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '')
+    const formattedPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone
+
+    const text = type === 'cobrança' 
+      ? `Olá ${name}, tudo bem? Passando para lembrar da sua conta pendente com a gente. Se precisar de facilidades para pagamento ou boleto, fale com a gente! 😉`
+      : `Olá ${name}! Como membro VIP do nosso Clube de Vantagens, preparamos ofertas incríveis para você hoje! Venha conferir! 💎`
+
+    const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`
+    window.open(url, '_blank')
   }
 
   const handleActionOrder = async (orderId: string, currentStatus: string, customerPhone: string, customerName: string) => {
@@ -323,7 +353,12 @@ export default function Customers() {
                   <tbody>
                     {filteredCustomers.map((c) => (
                       <tr key={c.id} className="border-b last:border-0 hover:bg-muted/20">
-                        <td className="px-4 py-3 font-medium">{c.name}</td>
+                        <td className="px-4 py-3 font-medium flex items-center gap-1.5">
+                          {c.is_club_member && (
+                            <Crown className="w-4 h-4 text-purple-400 shrink-0" />
+                          )}
+                          {c.name}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           <div>{c.phone}</div>
                           <div className="text-xs">{c.email}</div>
@@ -332,7 +367,18 @@ export default function Customers() {
                         <td className="px-4 py-3 font-bold text-green-500">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(c.cashback_balance || 0)}
                         </td>
-                        <td className="px-4 py-3 text-right">
+                         <td className="px-4 py-3 text-right">
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-green-500 mr-2" onClick={() => sendWhatsAppReminder(c.phone, c.name, 'cobrança')} title="Cobrar por WhatsApp">
+                            <MessageSquare className="w-4 h-4 text-emerald-500" />
+                          </Button>
+                          {c.is_club_member && (
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-purple-400 mr-2" onClick={() => sendWhatsAppReminder(c.phone, c.name, 'vip')} title="Enviar Oferta VIP">
+                              <Sparkles className="w-4 h-4 text-purple-400" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="icon" className={`mr-2 ${c.is_club_member ? 'text-purple-400 hover:text-purple-300' : 'text-muted-foreground hover:text-purple-400'}`} onClick={() => toggleClubMembership(c.id, !!c.is_club_member)} title={c.is_club_member ? "Remover do Clube de Membros" : "Tornar VIP do Clube"}>
+                            <Crown className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-green-500 mr-2" onClick={() => updateCashback(c.id, c.cashback_balance || 0)} title="Ajustar Cashback">
                             <Wallet className="w-4 h-4" />
                           </Button>

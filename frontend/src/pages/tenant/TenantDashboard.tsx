@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X } from "lucide-react"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown } from "lucide-react"
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
+
+const COLORS = ['#a855f7', '#6366f1', '#06b6d4', '#3b82f6', '#14b8a6', '#64748b']
 
 export default function TenantDashboard() {
   const [loading, setLoading] = useState(true)
@@ -24,6 +27,9 @@ export default function TenantDashboard() {
   
   const [recentSales, setRecentSales] = useState<any[]>([])
   const [receiptData, setReceiptData] = useState<any>(null)
+  const [salesChartData, setSalesChartData] = useState<any[]>([])
+  const [expenseChartData, setExpenseChartData] = useState<any[]>([])
+  const [topProductsData, setTopProductsData] = useState<any[]>([])
 
   // Date Picker State para o Dashboard
   const [startDate, setStartDate] = useState(() => {
@@ -33,16 +39,117 @@ export default function TenantDashboard() {
     return new Date().toISOString().split('T')[0]
   })
 
-  useEffect(() => {
-    checkAccess()
-  }, [])
+  const loadMetrics = useCallback(async () => {
+    // Corrige fuso horário para bater exatamente com o dia local do lojista
+    const startOfDay = new Date(startDate + 'T00:00:00')
+    const endOfDay = new Date(endDate + 'T23:59:59.999')
+    
+    // Vendas no período selecionado (puxa o timestamp de criação para agrupamento por dia)
+    const { data: salesToday } = await supabase
+      .from('sales')
+      .select('total_amount, created_at')
+      .eq('status', 'paid')
+      .gte('created_at', startOfDay.toISOString())
+      .lte('created_at', endOfDay.toISOString())
+      
+    const totalVendas = salesToday?.reduce((acc, sale) => acc + Number(sale.total_amount), 0) || 0
+    const qtdPedidos = salesToday?.length || 0
 
-  useEffect(() => {
-    // Carrega apenas no início
-    if (profile) loadMetrics()
-  }, [profile])
+    // Agrupar vendas por dia para o gráfico de linhas
+    const salesByDay: { [key: string]: number } = {}
+    salesToday?.forEach(sale => {
+      const dateKey = new Date(sale.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      salesByDay[dateKey] = (salesByDay[dateKey] || 0) + Number(sale.total_amount)
+    })
+    const formattedSalesChart = Object.keys(salesByDay).map(day => ({
+      date: day,
+      valor: salesByDay[day]
+    })).sort((a, b) => a.date.localeCompare(b.date))
+    setSalesChartData(formattedSalesChart)
 
-  const checkAccess = async () => {
+    // Alerta de Estoque Baixo
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: products } = user
+      ? await supabase.from('products').select('stock_quantity, min_stock').eq('tenant_id', user.id)
+      : { data: [] }
+    const lowStock = products?.filter(p => p.stock_quantity <= (p.min_stock || 5))?.length || 0
+
+    // Contas a Receber Vencidas
+    const { data: overdue } = await supabase
+      .from('financial_transactions')
+      .select('amount')
+      .eq('type', 'receivable')
+      .eq('status', 'pending')
+      .lt('due_date', new Date().toISOString().split('T')[0])
+      
+    const totalVencido = overdue?.reduce((acc, t) => acc + Number(t.amount), 0) || 0
+
+    // Saldo Pendente (Aguardando Retirada ou A Prazo Pendente ou Venda Online Pendente)
+    const { data: pendingSales } = await supabase
+      .from('sales')
+      .select('total_amount')
+      .in('status', ['awaiting_pickup', 'pending', 'pending_online'])
+
+    const totalPendente = pendingSales?.reduce((acc, sale) => acc + Number(sale.total_amount), 0) || 0
+
+    setMetrics({
+      vendasHoje: totalVendas,
+      qtdPedidosHoje: qtdPedidos,
+      contasVencidas: totalVencido,
+      qtdVencidas: overdue?.length || 0,
+      alertaEstoque: lowStock,
+      saldoPendente: totalPendente
+    })
+
+    // Transações de despesas pagas no período para gráfico de pizza
+    const { data: expenses } = await supabase
+      .from('financial_transactions')
+      .select('amount, category')
+      .eq('type', 'payable')
+      .eq('status', 'paid')
+      .gte('due_date', startDate)
+      .lte('due_date', endDate)
+
+    const expenseByCategory: { [key: string]: number } = {}
+    expenses?.forEach(exp => {
+      const cat = exp.category || 'Outros'
+      expenseByCategory[cat] = (expenseByCategory[cat] || 0) + Number(exp.amount)
+    })
+    const formattedExpenseChart = Object.keys(expenseByCategory).map(cat => ({
+      name: cat,
+      value: expenseByCategory[cat]
+    }))
+    setExpenseChartData(formattedExpenseChart)
+
+    // Busca itens de vendas no período para ranking de produtos
+    const { data: saleItems } = await supabase
+      .from('sale_items')
+      .select('quantity, products(name)')
+      .gte('created_at', startOfDay.toISOString())
+      .lte('created_at', endOfDay.toISOString())
+
+    const productsVolume: { [key: string]: number } = {}
+    saleItems?.forEach(item => {
+      const pName = (Array.isArray(item.products) ? item.products[0]?.name : (item.products as any)?.name) || 'Produto Excluído'
+      productsVolume[pName] = (productsVolume[pName] || 0) + Number(item.quantity)
+    })
+    const formattedTopProducts = Object.keys(productsVolume).map(pName => ({
+      name: pName,
+      vendas: productsVolume[pName]
+    })).sort((a, b) => b.vendas - a.vendas).slice(0, 5)
+    setTopProductsData(formattedTopProducts)
+
+    // Últimas Vendas
+    const { data: recentData } = await supabase
+      .from('sales')
+      .select('*, customers(name)')
+      .order('created_at', { ascending: false })
+      .limit(10)
+      
+    setRecentSales(recentData || [])
+  }, [startDate, endDate])
+
+  const checkAccess = useCallback(async () => {
     // 1. Get current user
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -65,73 +172,19 @@ export default function TenantDashboard() {
       if (tenantData.status !== 'active' && tenantData.status !== 'pending') {
         alert("O status da sua empresa é: " + tenantData.status)
       }
-
-      // 3. Load Dashboard Metrics (chamado pelo useEffect de selectedDate)
-      // Mas para não atrasar o primeiro render:
-      loadMetrics()
     }
     
     setLoading(false)
-  }
+  }, [navigate])
 
-  const loadMetrics = async () => {
-    const startOfDay = new Date(startDate)
-    startOfDay.setHours(0, 0, 0, 0)
-    
-    const endOfDay = new Date(endDate)
-    endOfDay.setHours(23, 59, 59, 999)
-    
-    // Vendas no período selecionado
-    const { data: salesToday } = await supabase
-      .from('sales')
-      .select('total_amount')
-      .eq('status', 'paid')
-      .gte('created_at', startOfDay.toISOString())
-      .lte('created_at', endOfDay.toISOString())
-      
-    const totalVendas = salesToday?.reduce((acc, sale) => acc + Number(sale.total_amount), 0) || 0
-    const qtdPedidos = salesToday?.length || 0
+  useEffect(() => {
+    checkAccess()
+  }, [checkAccess])
 
-    // Alerta de Estoque Baixo
-    const { data: products } = await supabase.from('products').select('stock_quantity, min_stock')
-    const lowStock = products?.filter(p => p.stock_quantity <= (p.min_stock || 5))?.length || 0
-
-    // Contas a Receber Vencidas (qualquer dia menor que hoje é vencido, a data do seletor não muda o que é vencido HOJE)
-    const { data: overdue } = await supabase
-      .from('financial_transactions')
-      .select('amount')
-      .eq('type', 'receivable')
-      .eq('status', 'pending')
-      .lt('due_date', new Date().toISOString().split('T')[0])
-      
-    const totalVencido = overdue?.reduce((acc, t) => acc + Number(t.amount), 0) || 0
-
-    // Saldo Pendente (Aguardando Retirada ou A Prazo Pendente)
-    const { data: pendingSales } = await supabase
-      .from('sales')
-      .select('total_amount')
-      .in('status', ['awaiting_pickup', 'pending'])
-
-    const totalPendente = pendingSales?.reduce((acc, sale) => acc + Number(sale.total_amount), 0) || 0
-
-    setMetrics({
-      vendasHoje: totalVendas,
-      qtdPedidosHoje: qtdPedidos,
-      contasVencidas: totalVencido,
-      qtdVencidas: overdue?.length || 0,
-      alertaEstoque: lowStock,
-      saldoPendente: totalPendente
-    })
-
-    // Últimas Vendas
-    const { data: recentData } = await supabase
-      .from('sales')
-      .select('*, customers(name)')
-      .order('created_at', { ascending: false })
-      .limit(10)
-      
-    setRecentSales(recentData || [])
-  }
+  useEffect(() => {
+    // Carrega apenas no início
+    if (profile) loadMetrics()
+  }, [profile, loadMetrics])
 
   const handleDeleteSale = async (id: string) => {
     if (!confirm("Atenção: A exclusão é irreversível e removerá a venda do histórico financeiro. Deseja continuar?")) return
@@ -208,7 +261,9 @@ export default function TenantDashboard() {
           <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-purple-400" /> {profile?.tenants?.name || 'Sua Empresa'}
           </h2>
-          <p className="text-[10px] font-mono text-purple-400 uppercase tracking-widest mt-1">Olá, {profile?.full_name || 'Usuário'}</p>
+          <p className="text-[10px] font-mono text-purple-400 uppercase tracking-widest mt-1">
+            Olá, {profile?.full_name || 'Usuário'} ({profile?.tenants?.role === 'cashier' ? 'Caixa' : (profile?.tenants?.role === 'manager' ? 'Gerente' : 'Admin')})
+          </p>
         </div>
         <nav className="flex-1 p-4 space-y-1">
           <Button variant="secondary" className="w-full justify-start gap-2 bg-white/5 text-white border-0 hover:bg-white/10" onClick={() => navigate('/dashboard')}>
@@ -223,12 +278,25 @@ export default function TenantDashboard() {
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/clientes')}>
             <Users className="w-4 h-4" /> CRM (Clientes)
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/financeiro')}>
-            <DollarSign className="w-4 h-4" /> Financeiro
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/clube-membros')}>
+            <Crown className="w-4 h-4 text-purple-400" /> Club de Membros
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/configuracoes')}>
-            <Settings className="w-4 h-4" /> Configurações
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/fornecedores')}>
+            <Truck className="w-4 h-4" /> Fornecedores
           </Button>
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/orcamentos')}>
+            <FileText className="w-4 h-4" /> Orçamentos
+          </Button>
+          {profile?.tenants?.role !== 'cashier' && (
+            <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/financeiro')}>
+              <DollarSign className="w-4 h-4" /> Financeiro
+            </Button>
+          )}
+          {profile?.tenants?.role !== 'cashier' && (
+            <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/configuracoes')}>
+              <Settings className="w-4 h-4" /> Configurações
+            </Button>
+          )}
         </nav>
         <div className="p-4 border-t border-white/5">
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10" onClick={handleLogout}>
@@ -266,7 +334,7 @@ export default function TenantDashboard() {
         </div>
 
         {/* Resumo Rápido */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${profile?.tenants?.role === 'cashier' ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4 md:gap-6 mb-8`}>
           <Card className="bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
               <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Vendas no Período</CardDescription>
@@ -291,17 +359,19 @@ export default function TenantDashboard() {
             </CardContent>
           </Card>
 
-          <Card className="bg-glass border border-white/5 hover:border-amber-500/30 transition-all bg-glass-hover">
-            <CardHeader className="pb-2">
-              <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Contas Vencidas</CardDescription>
-              <CardTitle className="text-3xl font-black text-amber-400">
-                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.contasVencidas)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-zinc-500 font-mono">{metrics.qtdVencidas} faturas em atraso</p>
-            </CardContent>
-          </Card>
+          {profile?.tenants?.role !== 'cashier' && (
+            <Card className="bg-glass border border-white/5 hover:border-amber-500/30 transition-all bg-glass-hover">
+              <CardHeader className="pb-2">
+                <CardDescription className="text-zinc-400 font-medium text-xs uppercase tracking-wider">Contas Vencidas</CardDescription>
+                <CardTitle className="text-3xl font-black text-amber-400">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(metrics.contasVencidas)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-zinc-500 font-mono">{metrics.qtdVencidas} faturas em atraso</p>
+              </CardContent>
+            </Card>
+          )}
 
           <Card className="bg-glass border border-white/5 hover:border-rose-500/30 transition-all bg-glass-hover">
             <CardHeader className="pb-2">
@@ -314,10 +384,73 @@ export default function TenantDashboard() {
           </Card>
         </div>
 
+        {/* Gráficos de BI (Área & Pizza) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <Card className={`${profile?.tenants?.role === 'cashier' ? 'lg:col-span-3' : 'lg:col-span-2'} bg-glass border border-white/5 p-6 flex flex-col justify-between`}>
+            <div>
+              <h3 className="font-extrabold text-white text-base">Evolução de Vendas</h3>
+              <p className="text-zinc-500 text-xs mt-1">Faturamento acumulado por dia no período.</p>
+            </div>
+            <div className="h-[280px] w-full mt-4">
+              {salesChartData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-zinc-600 text-xs">Nenhuma venda no período.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={salesChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorValor" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" stroke="#4b5563" fontSize={11} tickLine={false} />
+                    <YAxis stroke="#4b5563" fontSize={11} tickLine={false} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#374151', color: '#fff' }} />
+                    <Area type="monotone" dataKey="valor" name="Vendas (R$)" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorValor)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </Card>
+
+          {profile?.tenants?.role !== 'cashier' && (
+            <Card className="lg:col-span-1 bg-glass border border-white/5 p-6 flex flex-col justify-between">
+              <div>
+                <h3 className="font-extrabold text-white text-base">Despesas por Categoria</h3>
+                <p className="text-zinc-500 text-xs mt-1">Distribuição de gastos liquidados no período.</p>
+              </div>
+              <div className="h-[280px] w-full mt-4 flex items-center justify-center">
+                {expenseChartData.length === 0 ? (
+                  <div className="text-zinc-600 text-xs">Nenhuma despesa registrada.</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={expenseChartData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {expenseChartData.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#374151', color: '#fff' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </Card>
+          )}
+        </div>
+
         {/* Acesso Rápido (Funções do Site) */}
         <div className="mb-8">
           <h2 className="text-lg font-bold text-white mb-4 uppercase tracking-wider text-xs">Atalhos do Painel</h2>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+          <div className={`grid grid-cols-2 ${profile?.tenants?.role === 'cashier' ? 'lg:grid-cols-4' : 'lg:grid-cols-6'} gap-3 md:gap-4`}>
             <Card className="cursor-pointer bg-glass border border-white/5 hover:border-purple-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/pdv')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
                 <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20">
@@ -354,86 +487,123 @@ export default function TenantDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/financeiro')}>
+            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-purple-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/clube-membros')}>
               <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-400 border border-emerald-500/20">
-                  <DollarSign className="w-6 h-6" />
+                <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20 animate-pulse">
+                  <Crown className="w-6 h-6" />
                 </div>
                 <div className="text-center">
-                  <h3 className="font-semibold text-white text-sm">Finanças</h3>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Fluxo de Caixa</p>
+                  <h3 className="font-semibold text-white text-sm">Clube VIP</h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Club de Membros</p>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-zinc-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/configuracoes')}>
-              <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-zinc-500/10 rounded-full text-zinc-400 border border-zinc-500/20">
-                  <Settings className="w-6 h-6" />
-                </div>
-                <div className="text-center">
-                  <h3 className="font-semibold text-white text-sm">Configuração</h3>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Ajustes Gerais</p>
-                </div>
-              </CardContent>
-            </Card>
+            {profile?.tenants?.role !== 'cashier' && (
+              <Card className="cursor-pointer bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/financeiro')}>
+                <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
+                  <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-400 border border-emerald-500/20">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-white text-sm">Finanças</h3>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Fluxo de Caixa</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {profile?.tenants?.role !== 'cashier' && (
+              <Card className="cursor-pointer bg-glass border border-white/5 hover:border-zinc-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/configuracoes')}>
+                <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
+                  <div className="p-3 bg-zinc-500/10 rounded-full text-zinc-400 border border-zinc-500/20">
+                    <Settings className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="font-semibold text-white text-sm">Configuração</h3>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Ajustes Gerais</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 
-        <Card className="border-border">
-          <CardHeader>
-            <CardTitle>Vendas Recentes</CardTitle>
-            <CardDescription>Últimas 10 transações realizadas no PDV ou aprovadas da internet.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-0 overflow-x-auto">
-            <div className="min-w-[800px] border-0">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-muted/50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Data / Hora</th>
-                    <th className="px-4 py-3 font-medium">ID Pedido</th>
-                    <th className="px-4 py-3 font-medium">Cliente</th>
-                    <th className="px-4 py-3 font-medium">Total</th>
-                    <th className="px-4 py-3 font-medium text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSales.map((sale) => (
-                    <tr key={sale.id} className="border-b last:border-0 hover:bg-muted/20">
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {new Date(sale.created_at).toLocaleString('pt-BR')}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                        {sale.id.slice(0, 8)}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {sale.customers?.name || "Consumidor Final"}
-                      </td>
-                      <td className="px-4 py-3 font-bold text-primary">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total_amount)}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground h-8 px-2 mr-2" onClick={() => handleReprintSale(sale)}>
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" className="text-destructive h-8 px-2" onClick={() => handleDeleteSale(sale.id)}>
-                          Excluir
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                  {recentSales.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="text-center p-8 text-muted-foreground">
-                        Nenhuma venda registrada ainda.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Card className="lg:col-span-1 bg-glass border border-white/5 p-6 flex flex-col justify-between">
+            <div>
+              <h3 className="font-extrabold text-white text-base">Produtos Mais Vendidos</h3>
+              <p className="text-zinc-500 text-xs mt-1">Ranking de itens com maior saída no período.</p>
             </div>
-          </CardContent>
-        </Card>
+            <div className="h-[250px] w-full mt-4">
+              {topProductsData.length === 0 ? (
+                <div className="h-full flex items-center justify-center text-zinc-600 text-xs">Nenhum produto vendido no período.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topProductsData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 5 }}>
+                    <XAxis type="number" stroke="#4b5563" fontSize={11} tickLine={false} />
+                    <YAxis dataKey="name" type="category" stroke="#4b5563" fontSize={10} tickLine={false} width={80} />
+                    <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#374151', color: '#fff' }} />
+                    <Bar dataKey="vendas" name="Qtd Vendida" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </Card>
+
+          <Card className="lg:col-span-2 border-border">
+            <CardHeader>
+              <CardTitle>Vendas Recentes</CardTitle>
+              <CardDescription>Últimas 10 transações realizadas no PDV ou aprovadas da internet.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <div className="min-w-[500px] border-0">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted/50 border-b">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Data / Hora</th>
+                      <th className="px-4 py-3 font-medium">Cliente</th>
+                      <th className="px-4 py-3 font-medium">Total</th>
+                      <th className="px-4 py-3 font-medium text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSales.map((sale) => (
+                      <tr key={sale.id} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {new Date(sale.created_at).toLocaleString('pt-BR')}
+                        </td>
+                        <td className="px-4 py-3 font-medium">
+                          {sale.customers?.name || "Consumidor Final"}
+                        </td>
+                        <td className="px-4 py-3 font-bold text-primary">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sale.total_amount)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground h-8 px-2 mr-2" onClick={() => handleReprintSale(sale)}>
+                            <Printer className="w-4 h-4" />
+                          </Button>
+                          {profile?.tenants?.role !== 'cashier' && (
+                            <Button variant="ghost" size="sm" className="text-destructive h-8 px-2" onClick={() => handleDeleteSale(sale.id)}>
+                              Excluir
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {recentSales.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="text-center p-8 text-muted-foreground">
+                          Nenhuma venda registrada ainda.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </main>
     </div>
 

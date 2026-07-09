@@ -52,7 +52,9 @@ export default function Register() {
           name: companyName,
           document: document,
           plan: selectedPlan,
-          status: 'pending' // Status inicial aguardando aprovação
+          status: 'active', // Fica ativo durante o período de testes
+          trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          subscription_status: 'trialing'
         }])
 
       if (tenantError) {

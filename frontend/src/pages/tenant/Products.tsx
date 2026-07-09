@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { Package, Plus, Search, Trash2, ArrowLeft } from "lucide-react"
+import { Package, Plus, Search, Trash2, ArrowLeft, Sparkles } from "lucide-react"
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
@@ -16,6 +16,9 @@ export default function Products() {
   const [minStock, setMinStock] = useState("")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>("")
+  const [taxRegime, setTaxRegime] = useState<"Simples Nacional" | "Lucro Presumido" | "Lucro Real">("Simples Nacional")
+  const [defaultTaxRate, setDefaultTaxRate] = useState("6.00")
+  const [suggestions, setSuggestions] = useState<any[]>([])
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -24,20 +27,103 @@ export default function Products() {
 
   const fetchProducts = async () => {
     setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from('products')
       .select('*, inventory(quantity)')
+      .eq('tenant_id', user.id)
       .order('created_at', { ascending: false })
     
     if (error) console.error(error)
     else setProducts(data || [])
     
+    await fetchSuggestions()
     setLoading(false)
+  }
+
+  const fetchSuggestions = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    // 1. Vendas nos últimos 30 dias para calcular velocidade de giro
+    const { data: salesItemsData } = await supabase
+      .from('sale_items')
+      .select('quantity, product_id')
+      .eq('tenant_id', user.id)
+      .gte('created_at', thirtyDaysAgo.toISOString())
+
+    // 2. Todos os produtos e estoque
+    const { data: productsData } = await supabase
+      .from('products')
+      .select('id, name, min_stock, sku, inventory(quantity)')
+      .eq('tenant_id', user.id)
+
+    if (!productsData) return
+
+    const salesVolume: { [key: string]: number } = {}
+    salesItemsData?.forEach(item => {
+      if (item.product_id) {
+        salesVolume[item.product_id] = (salesVolume[item.product_id] || 0) + Number(item.quantity)
+      }
+    })
+
+    const restockSuggestions: any[] = []
+
+    productsData.forEach(p => {
+      const currentStock = p.inventory?.[0]?.quantity || 0
+      const minS = p.min_stock || 5
+      const sold30 = salesVolume[p.id] || 0
+      const dailyAvg = sold30 / 30
+      
+      let daysRemaining = null
+      if (dailyAvg > 0) {
+        daysRemaining = currentStock / dailyAvg
+      }
+
+      // Se o estoque está abaixo do mínimo ou vai acabar em menos de 10 dias
+      if (currentStock <= minS || (daysRemaining !== null && daysRemaining <= 10)) {
+        const targetQty = Math.max(Math.ceil(dailyAvg * 30), minS * 2)
+        const suggestQty = Math.max(targetQty - currentStock, 0)
+
+        if (suggestQty > 0) {
+          restockSuggestions.push({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            currentStock,
+            minStock: minS,
+            daysRemaining: daysRemaining !== null ? Math.round(daysRemaining) : null,
+            suggestQty,
+            urgency: currentStock === 0 ? 'crítico' : (currentStock <= minS ? 'alto' : 'médio')
+          })
+        }
+      }
+    })
+
+    setSuggestions(restockSuggestions.sort((a, b) => {
+      const score = (val: string) => val === 'crítico' ? 3 : (val === 'alto' ? 2 : 1)
+      return score(b.urgency) - score(a.urgency)
+    }))
   }
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert("Usuário não autenticado.")
+      setLoading(false)
+      return
+    }
 
     let imageUrl = null
 
@@ -57,9 +143,19 @@ export default function Products() {
       imageUrl = data.publicUrl
     }
 
+    const rate = parseFloat(defaultTaxRate)
     const { data: product, error: pError } = await supabase
       .from('products')
-      .insert([{ name, price: parseFloat(price), sku, image_url: imageUrl, min_stock: parseInt(minStock) }])
+      .insert([{ 
+        tenant_id: user.id,
+        name, 
+        price: parseFloat(price), 
+        sku, 
+        image_url: imageUrl, 
+        min_stock: parseInt(minStock),
+        tax_regime: taxRegime,
+        default_tax_rate: taxRegime === "Simples Nacional" ? (isNaN(rate) ? 6 : rate) : 0
+      }])
       .select()
       .single()
 
@@ -75,6 +171,8 @@ export default function Products() {
       setMinStock("")
       setImageFile(null)
       setPreviewUrl("")
+      setTaxRegime("Simples Nacional")
+      setDefaultTaxRate("6.00")
       fetchProducts()
     }
     setLoading(false)
@@ -123,6 +221,29 @@ export default function Products() {
                   <label className="text-sm font-medium">Preço de Venda (R$)</label>
                   <Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} required placeholder="49.90" />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Regime Tributário (Enquadramento)</label>
+                  <select 
+                    value={taxRegime} 
+                    onChange={e => setTaxRegime(e.target.value as any)} 
+                    className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="Simples Nacional">Simples Nacional</option>
+                    <option value="Lucro Presumido">Lucro Presumido</option>
+                    <option value="Lucro Real">Lucro Real</option>
+                  </select>
+                </div>
+                {taxRegime === "Simples Nacional" && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Alíquota do DAS Padrão (%)</label>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      value={defaultTaxRate} 
+                      onChange={e => setDefaultTaxRate(e.target.value)} 
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Qtd em Estoque</label>
@@ -167,7 +288,52 @@ export default function Products() {
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
+          {/* Card de Sugestões de Reposição Inteligente */}
+          {suggestions.length > 0 && (
+            <Card className="border-purple-500/20 bg-purple-500/5 backdrop-blur-sm shadow-lg shadow-purple-500/5">
+              <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                <div>
+                  <CardTitle className="text-white text-base flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" /> Sugestões de Reposição Inteligente
+                  </CardTitle>
+                  <CardDescription className="text-zinc-400 text-xs mt-1">Algoritmo de giro preditivo analisando os últimos 30 dias de vendas.</CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {suggestions.slice(0, 4).map(s => (
+                    <div key={s.id} className="p-3.5 bg-slate-950/40 rounded-xl border border-white/5 flex flex-col justify-between hover:border-purple-500/25 transition-all">
+                      <div>
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="font-bold text-white text-sm line-clamp-1">{s.name}</h4>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            s.urgency === 'crítico' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                            s.urgency === 'alto' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                          }`}>
+                            {s.urgency}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 font-mono mt-0.5">SKU: {s.sku || '---'}</p>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
+                        <div className="text-zinc-400 space-y-0.5">
+                          <div>Estoque atual: <span className="text-white font-mono font-bold">{s.currentStock} un</span></div>
+                          <div>Previsão: <span className="text-white font-bold">{s.daysRemaining !== null ? `${s.daysRemaining} dias restando` : 'Sem giro recente'}</span></div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-[10px] text-purple-300 font-bold uppercase">Sugerido Comprar</div>
+                          <div className="text-purple-400 font-black text-lg font-mono">+{s.suggestQty} un</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="border-border">
             <CardHeader className="flex flex-col md:flex-row items-start md:items-center justify-between pb-2 gap-4">
               <div className="space-y-1">
@@ -187,6 +353,7 @@ export default function Products() {
                       <th className="px-4 py-3 font-medium">Produto</th>
                       <th className="px-4 py-3 font-medium">SKU</th>
                       <th className="px-4 py-3 font-medium text-right">Preço</th>
+                      <th className="px-4 py-3 font-medium text-center">Tributação</th>
                       <th className="px-4 py-3 font-medium text-center">Estoque</th>
                       <th className="px-4 py-3 text-right">Ações</th>
                     </tr>
@@ -203,6 +370,17 @@ export default function Products() {
                         <td className="px-4 py-3 text-muted-foreground">{p.sku}</td>
                         <td className="px-4 py-3 text-right font-medium text-primary">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(p.price)}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                            p.tax_regime === "Simples Nacional" ? "bg-emerald-500/10 text-emerald-400" :
+                            p.tax_regime === "Lucro Presumido" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400"
+                          }`}>
+                            {p.tax_regime || "Simples Nacional"}
+                          </span>
+                          {p.tax_regime === "Simples Nacional" && (
+                            <div className="text-[10px] text-zinc-500 mt-0.5">Alíquota: {p.default_tax_rate}%</div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className="inline-flex items-center justify-center bg-secondary px-2.5 py-0.5 rounded-full text-xs font-medium">
@@ -222,6 +400,7 @@ export default function Products() {
                           <td className="px-4 py-4"><div className="h-6 bg-muted rounded w-48"></div></td>
                           <td className="px-4 py-4"><div className="h-4 bg-muted rounded w-24"></div></td>
                           <td className="px-4 py-4 text-right"><div className="h-4 bg-muted rounded w-20 ml-auto"></div></td>
+                          <td className="px-4 py-4 text-center"><div className="h-4 bg-muted rounded w-20 mx-auto"></div></td>
                           <td className="px-4 py-4 text-center"><div className="h-6 bg-muted rounded-full w-12 mx-auto"></div></td>
                           <td className="px-4 py-4"><div className="h-8 bg-muted rounded w-8 ml-auto"></div></td>
                         </tr>
@@ -229,7 +408,7 @@ export default function Products() {
                     )}
                     {products.length === 0 && !loading && (
                       <tr>
-                        <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Nenhum produto cadastrado.</td>
+                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Nenhum produto cadastrado.</td>
                       </tr>
                     )}
                   </tbody>
