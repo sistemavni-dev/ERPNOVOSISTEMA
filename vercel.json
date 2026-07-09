@@ -3,9 +3,6 @@
   "outputDirectory": "frontend/dist",
   "cleanUrls": true,
   "rewrites": [
-    {
-      "source": "/((?!assets/|favicon.svg).*)" ,
-      "destination": "/index.html"
-    }
+    { "source": "/:path*", "destination": "/index.html" }
   ]
 }
