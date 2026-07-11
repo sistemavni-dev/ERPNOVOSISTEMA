@@ -92,6 +92,47 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return children
 }
 
+// Guard para verificar o plano de assinatura
+function PlanRoute({ children, allowedPlans }: { children: React.ReactNode, allowedPlans: string[] }) {
+  const [planStatus, setPlanStatus] = useState<'loading' | 'allowed' | 'denied'>('loading')
+
+  useEffect(() => {
+    checkPlan()
+  }, [])
+
+  const checkPlan = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setPlanStatus('denied')
+      return
+    }
+
+    const { data } = await supabase.from('tenants').select('plan, subscription_status, trial_ends_at').eq('id', user.id).single()
+    if (!data) {
+      setPlanStatus('denied')
+      return
+    }
+
+    // Se estiver em trial válido, libera tudo provisoriamente (opcional)
+    const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at) : null
+    const isTrialExpired = trialEnds ? trialEnds < new Date() : false
+    
+    // Libera se o plano for compatível OU se for um trial ainda válido
+    if (allowedPlans.includes(data.plan) || (data.subscription_status === 'trialing' && !isTrialExpired)) {
+      setPlanStatus('allowed')
+    } else {
+      setPlanStatus('denied')
+    }
+  }
+
+  if (planStatus === 'loading') return <div className="min-h-screen bg-[#020617] text-white flex items-center justify-center">Verificando plano...</div>
+  if (planStatus === 'denied') {
+    return <Navigate to="/planos?blocked=true" replace />
+  }
+  
+  return children
+}
+
 function App() {
   return (
     <Router>
@@ -101,11 +142,11 @@ function App() {
         <Route path="/dashboard" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
         <Route path="/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-        <Route path="/clube-membros" element={<ProtectedRoute><MemberClub /></ProtectedRoute>} />
-        <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><Finance /></AdminRoute></ProtectedRoute>} />
-        <Route path="/fornecedores" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
-        <Route path="/orcamentos" element={<ProtectedRoute><SupplierQuotes /></ProtectedRoute>} />
+        <Route path="/clientes" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Customers /></PlanRoute></ProtectedRoute>} />
+        <Route path="/clube-membros" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><MemberClub /></PlanRoute></ProtectedRoute>} />
+        <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Finance /></PlanRoute></AdminRoute></ProtectedRoute>} />
+        <Route path="/fornecedores" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Suppliers /></PlanRoute></ProtectedRoute>} />
+        <Route path="/orcamentos" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><SupplierQuotes /></PlanRoute></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Settings /></AdminRoute></ProtectedRoute>} />
         <Route path="/planos" element={<Plans />} />
         <Route path="/loja/:slug" element={<Storefront />} />

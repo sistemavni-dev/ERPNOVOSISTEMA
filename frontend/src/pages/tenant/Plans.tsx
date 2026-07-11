@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../../components/ui/card"
 import { Input } from "../../components/ui/input"
-import { CheckCircle, AlertCircle, LogOut, MessageCircle, Package, DollarSign, Store, Clipboard, ExternalLink, Trash2, Crown } from "lucide-react"
+import { CheckCircle, AlertCircle, LogOut, MessageCircle, Package, DollarSign, Store, Clipboard, ExternalLink, Trash2, Crown, Users, Lock } from "lucide-react"
 
 export default function Plans() {
   const [loading, setLoading] = useState(true)
@@ -378,7 +378,7 @@ export default function Plans() {
                   </div>
 
                   <Button type="submit" disabled={checkoutLoading} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold h-11 border-0 shadow-lg shadow-purple-500/25 mt-2">
-                    {checkoutLoading ? "Processando Assinatura no Asaas..." : `Gerar Assinatura (R$ ${checkoutPlan === 'ouro' ? '119,90' : '59,90'}/mês)`}
+                    {checkoutLoading ? "Processando Assinatura no Asaas..." : `Gerar Assinatura (R$ ${checkoutPlan === 'ouro' ? '159,90' : checkoutPlan === 'prata' ? '89,90' : '49,90'}/mês)`}
                   </Button>
                 </form>
               ) : (
@@ -455,25 +455,55 @@ export default function Plans() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch max-w-4xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
           
+          {/* Plano Bronze */}
+          <Card className="bg-slate-950/50 backdrop-blur-xl border border-white/5 hover:border-zinc-500/30 transition-all flex flex-col justify-between hover:shadow-2xl">
+            <CardHeader className="pt-8">
+              <CardTitle className="text-2xl font-bold text-amber-600">Plano Bronze</CardTitle>
+              <CardDescription className="text-zinc-500">Ideal para começar e focar nas vendas.</CardDescription>
+              <div className="mt-6">
+                <span className="text-5xl font-black text-white">R$ 49,90</span><span className="text-zinc-500 text-sm">/mês</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4 flex-1">
+              <ul className="space-y-3 text-sm text-zinc-300">
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <Store className="w-4 h-4 text-amber-500"/> Vitrine Virtual Ilimitada</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <Package className="w-4 h-4 text-amber-500"/> Gestão de Produtos e Estoque</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <DollarSign className="w-4 h-4 text-amber-500"/> PDV (Frente de Caixa)</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Gestão de Clientes e CRM</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Gestão Financeira Completa</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Orçamentos e Fornecedores</li>
+              </ul>
+            </CardContent>
+            <CardFooter className="pb-8 pt-4">
+              <Button 
+                variant="outline" 
+                className="w-full text-zinc-300 border-zinc-700 hover:bg-zinc-700/30 hover:border-zinc-600 transition-all h-11"
+                onClick={() => handleSubscribe('bronze')}
+              >
+                Assinar Plano Bronze
+              </Button>
+            </CardFooter>
+          </Card>
+
           {/* Plano Prata */}
           <Card className="bg-slate-950/50 backdrop-blur-xl border border-white/5 hover:border-zinc-500/30 transition-all flex flex-col justify-between hover:shadow-2xl">
             <CardHeader className="pt-8">
               <CardTitle className="text-2xl font-bold text-zinc-400">Plano Prata</CardTitle>
               <CardDescription className="text-zinc-500">Gestão completa e PDV para o seu comércio.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-white">R$ 59,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-white">R$ 89,90</span><span className="text-zinc-500 text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4 flex-1">
               <ul className="space-y-3 text-sm text-zinc-300">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <Store className="w-4 h-4 text-zinc-500"/> Vitrine Virtual Ilimitada</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <Package className="w-4 h-4 text-zinc-500"/> Gestão de Produtos e Estoque</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <DollarSign className="w-4 h-4 text-zinc-500"/> PDV Completo e Finanças</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Controle de Contas a Pagar/Receber</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Controle de Fiados e Cashback</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><AlertCircle className="w-4 h-4" /> <MessageCircle className="w-4 h-4"/> Sem Notificações / IA WhatsApp</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Tudo do Plano Bronze</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <Users className="w-4 h-4 text-zinc-500"/> Gestão de Clientes e CRM</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <DollarSign className="w-4 h-4 text-zinc-500"/> Controle Financeiro</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Orçamentos e Fornecedores</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Clube de Membros VIP</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Automação com WhatsApp e IA</li>
               </ul>
             </CardContent>
             <CardFooter className="pb-8 pt-4">
@@ -496,7 +526,7 @@ export default function Plans() {
               </CardTitle>
               <CardDescription className="text-zinc-500">Automação de WhatsApp, IA e Clube VIP.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-purple-400">R$ 119,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-purple-400">R$ 159,90</span><span className="text-zinc-500 text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-6 flex-1">

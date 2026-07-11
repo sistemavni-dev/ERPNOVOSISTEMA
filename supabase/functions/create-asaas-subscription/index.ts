@@ -126,7 +126,7 @@ serve(async (req) => {
     }
 
     // 3. Definir valor do plano
-    const value = plan === 'ouro' ? 119.90 : 59.90
+    const value = plan === 'ouro' ? 159.90 : plan === 'prata' ? 89.90 : 49.90
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
     const nextDueDate = tomorrow.toISOString().split('T')[0]

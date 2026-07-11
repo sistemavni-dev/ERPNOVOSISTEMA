@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown } from "lucide-react"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock } from "lucide-react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 
 const COLORS = ['#a855f7', '#6366f1', '#06b6d4', '#3b82f6', '#14b8a6', '#64748b']
@@ -237,6 +237,9 @@ export default function TenantDashboard() {
     return <div className="min-h-screen flex items-center justify-center bg-background text-foreground dark">Carregando painel...</div>
   }
 
+  const isTrial = profile?.tenants?.subscription_status === 'trialing' && profile?.tenants?.trial_ends_at && new Date(profile?.tenants?.trial_ends_at) > new Date();
+  const hasPrataAccess = isTrial || profile?.tenants?.plan === 'prata' || profile?.tenants?.plan === 'ouro';
+  const hasOuroAccess = isTrial || profile?.tenants?.plan === 'ouro';
 
   return (
     <>
@@ -275,21 +278,21 @@ export default function TenantDashboard() {
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/produtos')}>
             <Package className="w-4 h-4" /> Estoque & Produtos
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/clientes')}>
-            <Users className="w-4 h-4" /> CRM (Clientes)
+          <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/clientes') : navigate('/planos?blocked=true')}>
+            <Users className="w-4 h-4" /> CRM (Clientes) {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/clube-membros')}>
-            <Crown className="w-4 h-4 text-purple-400" /> Club de Membros
+          <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasOuroAccess && 'opacity-70'}`} onClick={() => hasOuroAccess ? navigate('/clube-membros') : navigate('/planos?blocked=true')}>
+            <Crown className="w-4 h-4 text-purple-400" /> Club de Membros {!hasOuroAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/fornecedores')}>
-            <Truck className="w-4 h-4" /> Fornecedores
+          <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/fornecedores') : navigate('/planos?blocked=true')}>
+            <Truck className="w-4 h-4" /> Fornecedores {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
           </Button>
-          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/orcamentos')}>
-            <FileText className="w-4 h-4" /> Orçamentos
+          <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/orcamentos') : navigate('/planos?blocked=true')}>
+            <FileText className="w-4 h-4" /> Orçamentos {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
           </Button>
           {profile?.tenants?.role !== 'cashier' && (
-            <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5" onClick={() => navigate('/financeiro')}>
-              <DollarSign className="w-4 h-4" /> Financeiro
+            <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/financeiro') : navigate('/planos?blocked=true')}>
+              <DollarSign className="w-4 h-4" /> Financeiro {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
             </Button>
           )}
           {profile?.tenants?.role !== 'cashier' && (
@@ -480,8 +483,9 @@ export default function TenantDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-indigo-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/clientes')}>
-              <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
+            <Card className={`cursor-pointer bg-glass border border-white/5 hover:border-indigo-500/30 transition-all bg-glass-hover shadow-lg ${!hasPrataAccess && 'opacity-60'}`} onClick={() => hasPrataAccess ? navigate('/clientes') : navigate('/planos?blocked=true')}>
+              <CardContent className="flex flex-col items-center justify-center p-6 gap-3 relative">
+                {!hasPrataAccess && <Lock className="w-4 h-4 text-zinc-500 absolute top-3 right-3" />}
                 <div className="p-3 bg-indigo-500/10 rounded-full text-indigo-400 border border-indigo-500/20">
                   <Users className="w-6 h-6" />
                 </div>
@@ -492,9 +496,10 @@ export default function TenantDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="cursor-pointer bg-glass border border-white/5 hover:border-purple-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/clube-membros')}>
-              <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
-                <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20 animate-pulse">
+            <Card className={`cursor-pointer bg-glass border border-white/5 hover:border-purple-500/30 transition-all bg-glass-hover shadow-lg ${!hasOuroAccess && 'opacity-60'}`} onClick={() => hasOuroAccess ? navigate('/clube-membros') : navigate('/planos?blocked=true')}>
+              <CardContent className="flex flex-col items-center justify-center p-6 gap-3 relative">
+                {!hasOuroAccess && <Lock className="w-4 h-4 text-zinc-500 absolute top-3 right-3" />}
+                <div className={`p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20 ${hasOuroAccess && 'animate-pulse'}`}>
                   <Crown className="w-6 h-6" />
                 </div>
                 <div className="text-center">
@@ -505,8 +510,9 @@ export default function TenantDashboard() {
             </Card>
 
             {profile?.tenants?.role !== 'cashier' && (
-              <Card className="cursor-pointer bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover shadow-lg" onClick={() => navigate('/financeiro')}>
-                <CardContent className="flex flex-col items-center justify-center p-6 gap-3">
+              <Card className={`cursor-pointer bg-glass border border-white/5 hover:border-emerald-500/30 transition-all bg-glass-hover shadow-lg ${!hasPrataAccess && 'opacity-60'}`} onClick={() => hasPrataAccess ? navigate('/financeiro') : navigate('/planos?blocked=true')}>
+                <CardContent className="flex flex-col items-center justify-center p-6 gap-3 relative">
+                  {!hasPrataAccess && <Lock className="w-4 h-4 text-zinc-500 absolute top-3 right-3" />}
                   <div className="p-3 bg-emerald-500/10 rounded-full text-emerald-400 border border-emerald-500/20">
                     <DollarSign className="w-6 h-6" />
                   </div>

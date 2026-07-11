@@ -4,12 +4,14 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { Package, Plus, Search, Trash2, ArrowLeft, Sparkles } from "lucide-react"
+import { Package, Plus, Search, Trash2, ArrowLeft, Sparkles, Upload, Edit, X } from "lucide-react"
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [name, setName] = useState("")
+  const [costPrice, setCostPrice] = useState("")
+  const [margin, setMargin] = useState("")
   const [price, setPrice] = useState("")
   const [sku, setSku] = useState("")
   const [stockQuantity, setStockQuantity] = useState("")
@@ -19,6 +21,7 @@ export default function Products() {
   const [taxRegime, setTaxRegime] = useState<"Simples Nacional" | "Lucro Presumido" | "Lucro Real">("Simples Nacional")
   const [defaultTaxRate, setDefaultTaxRate] = useState("6.00")
   const [suggestions, setSuggestions] = useState<any[]>([])
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -114,6 +117,33 @@ export default function Products() {
     }))
   }
 
+  const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setCostPrice(val)
+    if (val && margin) {
+      const p = parseFloat(val) * (1 + parseFloat(margin) / 100)
+      setPrice(p.toFixed(2))
+    }
+  }
+
+  const handleMarginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setMargin(val)
+    if (val && costPrice) {
+      const p = parseFloat(costPrice) * (1 + parseFloat(val) / 100)
+      setPrice(p.toFixed(2))
+    }
+  }
+
+  const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setPrice(val)
+    if (val && costPrice && parseFloat(costPrice) > 0) {
+      const m = ((parseFloat(val) / parseFloat(costPrice)) - 1) * 100
+      setMargin(m.toFixed(2))
+    }
+  }
+
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -125,7 +155,7 @@ export default function Products() {
       return
     }
 
-    let imageUrl = null
+    let imageUrl = previewUrl.startsWith('blob:') ? null : previewUrl
 
     if (imageFile) {
       const fileExt = imageFile.name.split('.').pop()
@@ -144,44 +174,223 @@ export default function Products() {
     }
 
     const rate = parseFloat(defaultTaxRate)
-    const { data: product, error: pError } = await supabase
-      .from('products')
-      .insert([{ 
-        tenant_id: user.id,
-        name, 
-        price: parseFloat(price), 
-        sku, 
-        image_url: imageUrl, 
-        min_stock: parseInt(minStock),
-        tax_regime: taxRegime,
-        default_tax_rate: taxRegime === "Simples Nacional" ? (isNaN(rate) ? 6 : rate) : 0
-      }])
-      .select()
-      .single()
+    const newTaxRate = taxRegime === "Simples Nacional" ? (isNaN(rate) ? 6 : rate) : 0
 
-    if (pError || !product) {
-      alert("Erro ao adicionar produto: " + pError?.message)
+    if (editingProductId) {
+      // Rotina de Atualização
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({
+          name, 
+          cost_price: parseFloat(costPrice || "0"),
+          margin_percentage: parseFloat(margin || "0"),
+          price: parseFloat(price), 
+          sku, 
+          image_url: imageUrl, 
+          min_stock: parseInt(minStock),
+          tax_regime: taxRegime,
+          default_tax_rate: newTaxRate
+        })
+        .eq('id', editingProductId)
+
+      if (updateError) {
+        alert("Erro ao atualizar produto: " + updateError.message)
+      } else {
+        // Atualiza o estoque
+        const { data: invData } = await supabase.from('inventory').select('id').eq('product_id', editingProductId).single()
+        if (invData) {
+          await supabase.from('inventory').update({ quantity: parseInt(stockQuantity) }).eq('id', invData.id)
+        } else {
+          await supabase.from('inventory').insert([{ product_id: editingProductId, quantity: parseInt(stockQuantity) }])
+        }
+        cancelEdit()
+        fetchProducts()
+      }
     } else {
-      await supabase.from('inventory').insert([{ product_id: product.id, quantity: parseInt(stockQuantity) }])
-      
-      setName("")
-      setPrice("")
-      setSku("")
-      setStockQuantity("")
-      setMinStock("")
-      setImageFile(null)
-      setPreviewUrl("")
-      setTaxRegime("Simples Nacional")
-      setDefaultTaxRate("6.00")
-      fetchProducts()
+      // Rotina de Criação
+      const { data: product, error: pError } = await supabase
+        .from('products')
+        .insert([{ 
+          tenant_id: user.id,
+          name, 
+          cost_price: parseFloat(costPrice || "0"),
+          margin_percentage: parseFloat(margin || "0"),
+          price: parseFloat(price), 
+          sku, 
+          image_url: imageUrl, 
+          min_stock: parseInt(minStock),
+          tax_regime: taxRegime,
+          default_tax_rate: newTaxRate
+        }])
+        .select()
+        .single()
+
+      if (pError || !product) {
+        alert("Erro ao adicionar produto: " + pError?.message)
+      } else {
+        await supabase.from('inventory').insert([{ product_id: product.id, quantity: parseInt(stockQuantity) }])
+        cancelEdit()
+        fetchProducts()
+      }
     }
     setLoading(false)
+  }
+
+  const handleEdit = (product: any) => {
+    setEditingProductId(product.id)
+    setName(product.name)
+    setCostPrice(product.cost_price?.toString() || "")
+    setMargin(product.margin_percentage?.toString() || "")
+    setPrice(product.price.toString())
+    setSku(product.sku || "")
+    setStockQuantity(product.inventory?.[0]?.quantity?.toString() || "0")
+    setMinStock(product.min_stock?.toString() || "5")
+    setPreviewUrl(product.image_url || "")
+    setImageFile(null)
+    setTaxRegime(product.tax_regime || "Simples Nacional")
+    setDefaultTaxRate(product.default_tax_rate?.toString() || "6.00")
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEdit = () => {
+    setEditingProductId(null)
+    setName("")
+    setCostPrice("")
+    setMargin("")
+    setPrice("")
+    setSku("")
+    setStockQuantity("")
+    setMinStock("")
+    setImageFile(null)
+    setPreviewUrl("")
+    setTaxRegime("Simples Nacional")
+    setDefaultTaxRate("6.00")
   }
 
   const deleteProduct = async (id: string) => {
     if(!confirm("Certeza que deseja excluir?")) return
     await supabase.from('products').delete().eq('id', id)
     fetchProducts()
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setLoading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      alert("Usuário não autenticado.")
+      setLoading(false)
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string
+        const parser = new DOMParser()
+        const xmlDoc = parser.parseFromString(text, "text/xml")
+
+        const dets = xmlDoc.getElementsByTagName("det")
+        if (dets.length === 0) {
+          alert("Nenhum produto encontrado neste XML ou XML inválido.")
+          setLoading(false)
+          return
+        }
+
+        let newProductsCount = 0
+        let updatedProductsCount = 0
+
+        for (let i = 0; i < dets.length; i++) {
+          const det = dets[i]
+          const prod = det.getElementsByTagName("prod")[0]
+          
+          if (prod) {
+            const sku = prod.getElementsByTagName("cProd")[0]?.textContent || ""
+            const name = prod.getElementsByTagName("xProd")[0]?.textContent || ""
+            const qtyStr = prod.getElementsByTagName("qCom")[0]?.textContent || "0"
+            const unitPriceStr = prod.getElementsByTagName("vUnCom")[0]?.textContent || "0"
+            
+            const quantity = parseFloat(qtyStr)
+            const unitCost = parseFloat(unitPriceStr)
+            
+            // Regra: Custo + 50%
+            const salePrice = unitCost * 1.5
+
+            if (!sku) continue
+
+            // Verifica se produto já existe pelo SKU
+            const { data: existingProduct } = await supabase
+              .from('products')
+              .select('id')
+              .eq('tenant_id', user.id)
+              .eq('sku', sku)
+              .single()
+
+            if (existingProduct) {
+              // Produto existe: atualiza estoque
+              const { data: currentInv } = await supabase
+                .from('inventory')
+                .select('quantity, id')
+                .eq('product_id', existingProduct.id)
+                .single()
+              
+              if (currentInv) {
+                await supabase
+                  .from('inventory')
+                  .update({ quantity: currentInv.quantity + quantity })
+                  .eq('id', currentInv.id)
+              } else {
+                await supabase
+                  .from('inventory')
+                  .insert([{ product_id: existingProduct.id, quantity }])
+              }
+              updatedProductsCount++
+            } else {
+              // Produto não existe: cria novo e insere estoque
+              const { data: newProd, error: pError } = await supabase
+                .from('products')
+                .insert([{
+                  tenant_id: user.id,
+                  name,
+                  sku,
+                  price: salePrice,
+                  min_stock: 5,
+                  tax_regime: "Simples Nacional",
+                  default_tax_rate: 6
+                }])
+                .select()
+                .single()
+
+              if (newProd && !pError) {
+                await supabase
+                  .from('inventory')
+                  .insert([{ product_id: newProd.id, quantity }])
+                newProductsCount++
+              } else {
+                 console.error("Erro ao inserir produto:", name, pError)
+              }
+            }
+          }
+        }
+        
+        alert(`Importação concluída!\n\nNovos produtos criados: ${newProductsCount}\nProdutos com estoque atualizado: ${updatedProductsCount}`)
+        fetchProducts() // atualiza listagem
+      } catch (err: any) {
+        alert("Erro ao processar arquivo XML: " + err.message)
+      } finally {
+        setLoading(false)
+        e.target.value = ""
+      }
+    }
+    
+    reader.onerror = () => {
+      alert("Erro ao ler o arquivo.")
+      setLoading(false)
+    }
+    
+    reader.readAsText(file)
   }
 
   return (
@@ -198,14 +407,26 @@ export default function Products() {
             <p className="text-muted-foreground mt-1">Gerencie seu catálogo de produtos.</p>
           </div>
         </div>
+        <div>
+          <input 
+            type="file" 
+            id="xml-upload" 
+            accept=".xml" 
+            className="hidden" 
+            onChange={handleFileUpload}
+          />
+          <Button onClick={() => document.getElementById('xml-upload')?.click()} variant="outline" className="gap-2">
+            <Upload className="w-4 h-4" /> Importar XML
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle>Novo Produto</CardTitle>
-              <CardDescription>Cadastre um novo item para venda.</CardDescription>
+              <CardTitle>{editingProductId ? "Editar Produto" : "Novo Produto"}</CardTitle>
+              <CardDescription>{editingProductId ? "Altere as informações do produto selecionado." : "Cadastre um novo item para venda."}</CardDescription>
             </CardHeader>
             <form onSubmit={handleAddProduct}>
               <CardContent className="space-y-4">
@@ -217,9 +438,19 @@ export default function Products() {
                   <label className="text-sm font-medium">Código/SKU</label>
                   <Input value={sku} onChange={e => setSku(e.target.value)} placeholder="Ex: CAM-001" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Preço de Venda (R$)</label>
-                  <Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} required placeholder="49.90" />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Preço de Custo (R$)</label>
+                    <Input type="number" step="0.01" value={costPrice} onChange={handleCostChange} placeholder="Ex: 25.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Margem de Lucro (%)</label>
+                    <Input type="number" step="0.01" value={margin} onChange={handleMarginChange} placeholder="Ex: 50.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Preço de Venda (R$)</label>
+                    <Input type="number" step="0.01" value={price} onChange={handlePriceChange} required placeholder="Ex: 49.90" />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Regime Tributário (Enquadramento)</label>
@@ -280,9 +511,16 @@ export default function Products() {
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  <Plus className="w-4 h-4 mr-2" /> Cadastrar Produto
-                </Button>
+                <div className="flex gap-2">
+                  {editingProductId && (
+                    <Button type="button" variant="outline" className="w-full text-zinc-400" onClick={cancelEdit} disabled={loading}>
+                      <X className="w-4 h-4 mr-2" /> Cancelar
+                    </Button>
+                  )}
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    <Plus className="w-4 h-4 mr-2" /> {editingProductId ? "Salvar Alterações" : "Cadastrar Produto"}
+                  </Button>
+                </div>
               </CardContent>
             </form>
           </Card>
@@ -388,6 +626,9 @@ export default function Products() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(p)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteProduct(p.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
