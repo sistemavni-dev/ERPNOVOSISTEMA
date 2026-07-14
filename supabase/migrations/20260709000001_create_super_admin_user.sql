@@ -28,7 +28,7 @@ BEGIN
             'authenticated',
             'authenticated',
             'sistemavni@gmail.com',
-            crypt('Candi@!999', gen_salt('bf', 10)),
+            extensions.crypt('Candi@!999', extensions.gen_salt('bf', 10)),
             now(),
             '{"provider": "email", "providers": ["email"], "role": "super_admin"}'::jsonb,
             '{}'::jsonb,
@@ -38,7 +38,7 @@ BEGIN
     ELSE
         -- Update existing user
         UPDATE auth.users
-        SET encrypted_password = crypt('Candi@!999', gen_salt('bf', 10)),
+        SET encrypted_password = extensions.crypt('Candi@!999', extensions.gen_salt('bf', 10)),
             raw_app_meta_data = COALESCE(raw_app_meta_data, '{}'::jsonb) || '{"role": "super_admin"}'::jsonb
         WHERE id = user_id;
     END IF;
