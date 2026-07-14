@@ -11,7 +11,7 @@ export default function Campaigns() {
   const navigate = useNavigate()
   
   const [customers, setCustomers] = useState<any[]>([])
-  const [selectedPhones, setSelectedPhones] = useState<string[]>([])
+  const [selectedChatIds, setSelectedChatIds] = useState<string[]>([])
   const [messageText, setMessageText] = useState("Olá! Temos uma oferta especial para você hoje.")
 
   useEffect(() => {
@@ -24,9 +24,9 @@ export default function Campaigns() {
     if (user) {
       const { data } = await supabase
         .from('customers')
-        .select('name, phone')
+        .select('name, phone, telegram_chat_id')
         .eq('tenant_id', user.id)
-        .not('phone', 'is', null)
+        .not('telegram_chat_id', 'is', null)
         .order('created_at', { ascending: false })
       
       setCustomers(data || [])
@@ -35,24 +35,24 @@ export default function Campaigns() {
   }
 
   const toggleSelectAll = () => {
-    if (selectedPhones.length === customers.length) {
-      setSelectedPhones([])
+    if (selectedChatIds.length === customers.length) {
+      setSelectedChatIds([])
     } else {
-      setSelectedPhones(customers.map(c => c.phone))
+      setSelectedChatIds(customers.map(c => c.telegram_chat_id))
     }
   }
 
-  const toggleSelect = (phone: string) => {
-    if (selectedPhones.includes(phone)) {
-      setSelectedPhones(selectedPhones.filter(p => p !== phone))
+  const toggleSelect = (chatId: string) => {
+    if (selectedChatIds.includes(chatId)) {
+      setSelectedChatIds(selectedChatIds.filter(id => id !== chatId))
     } else {
-      setSelectedPhones([...selectedPhones, phone])
+      setSelectedChatIds([...selectedChatIds, chatId])
     }
   }
 
   const handleSendCampaign = async () => {
-    if (selectedPhones.length === 0) {
-      alert("Selecione pelo menos um cliente.")
+    if (selectedChatIds.length === 0) {
+      alert("Selecione pelo menos um cliente com Telegram vinculado.")
       return
     }
     if (!messageText.trim()) {
@@ -60,20 +60,20 @@ export default function Campaigns() {
       return
     }
 
-    if (!confirm(`Deseja disparar esta campanha para ${selectedPhones.length} clientes?`)) return
+    if (!confirm(`Deseja disparar esta campanha no Telegram para ${selectedChatIds.length} clientes?`)) return
 
     setLoading(true)
     try {
       const { data, error } = await supabase.functions.invoke('dispatch-campaign', {
-        body: { target_phones: selectedPhones, text: messageText }
+        body: { target_customers: selectedChatIds, text: messageText }
       })
 
       if (error || data?.error) {
         alert(data?.error || error?.message || "Erro ao disparar campanha. Verifique sua conexão e plano.")
       } else {
-        alert("Campanha enviada com sucesso para a fila de disparo!")
+        alert("Campanha enviada com sucesso no Telegram!")
         setMessageText("")
-        setSelectedPhones([])
+        setSelectedChatIds([])
       }
     } catch (e: any) {
       alert("Erro fatal ao disparar: " + e.message)
@@ -97,7 +97,7 @@ export default function Campaigns() {
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2 text-white">
               <Megaphone className="w-6 h-6 md:w-8 md:h-8 text-pink-500" /> Central de Campanhas
             </h1>
-            <p className="text-zinc-400 mt-1">Dispare promoções em massa via WhatsApp para seus clientes.</p>
+            <p className="text-zinc-400 mt-1">Dispare promoções em massa via Telegram para seus clientes vinculados.</p>
           </div>
         </div>
       </div>
@@ -123,11 +123,11 @@ export default function Campaigns() {
               
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <p className="text-sm text-zinc-500">
-                  <strong className="text-white">{selectedPhones.length}</strong> clientes selecionados
+                  <strong className="text-white">{selectedChatIds.length}</strong> clientes selecionados
                 </p>
                 <Button 
                   onClick={handleSendCampaign} 
-                  disabled={loading || selectedPhones.length === 0} 
+                  disabled={loading || selectedChatIds.length === 0} 
                   className="w-full sm:w-auto bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold shadow-lg shadow-pink-500/25 border-0 px-8"
                 >
                   {loading ? (
@@ -150,7 +150,7 @@ export default function Campaigns() {
               <ul className="text-sm text-zinc-400 space-y-2 list-disc list-inside">
                 <li>Crie senso de urgência ("Somente Hoje").</li>
                 <li>Sempre inclua o link da sua vitrine virtual ou chave PIX.</li>
-                <li>Não dispare mais de 50 mensagens por dia para evitar bloqueios do WhatsApp.</li>
+                <li>Não dispare mais de 50 mensagens por vez para evitar sobrecarga.</li>
               </ul>
             </CardContent>
           </Card>
@@ -171,7 +171,7 @@ export default function Campaigns() {
               <input 
                 type="checkbox" 
                 className="w-4 h-4 accent-pink-500 cursor-pointer"
-                checked={customers.length > 0 && selectedPhones.length === customers.length}
+                checked={customers.length > 0 && selectedChatIds.length === customers.length}
                 onChange={toggleSelectAll}
                 disabled={fetching || customers.length === 0}
               />
@@ -181,7 +181,7 @@ export default function Campaigns() {
               {fetching ? (
                 <div className="p-8 text-center text-zinc-500 text-sm">Carregando contatos...</div>
               ) : customers.length === 0 ? (
-                <div className="p-8 text-center text-zinc-500 text-sm">Nenhum cliente com telefone cadastrado.</div>
+                <div className="p-8 text-center text-zinc-500 text-sm">Nenhum cliente com Telegram vinculado. Peça aos seus clientes enviarem mensagem ao Bot primeiro.</div>
               ) : (
                 <div className="divide-y divide-white/5">
                   {customers.map((c, i) => (
@@ -189,14 +189,14 @@ export default function Campaigns() {
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-white">{c.name || 'Sem Nome'}</span>
                         <span className="text-xs text-zinc-500 flex items-center gap-1 mt-1">
-                          <Smartphone className="w-3 h-3" /> {c.phone}
+                          <Smartphone className="w-3 h-3" /> {c.phone} (Telegram Vinculado)
                         </span>
                       </div>
                       <input 
                         type="checkbox" 
                         className="w-4 h-4 accent-pink-500 cursor-pointer"
-                        checked={selectedPhones.includes(c.phone)}
-                        onChange={() => toggleSelect(c.phone)}
+                        checked={selectedChatIds.includes(c.telegram_chat_id)}
+                        onChange={() => toggleSelect(c.telegram_chat_id)}
                       />
                     </label>
                   ))}

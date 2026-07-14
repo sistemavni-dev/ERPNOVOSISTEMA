@@ -22,16 +22,27 @@ serve(async (req) => {
     )
 
     const payload = await req.json()
-    console.log("Telegram Webhook payload received:", JSON.stringify(payload))
+    
+    let chatId = ""
+    let text = ""
+    let firstName = "Cliente"
+    let isCallback = false
+    let callbackData = ""
+    let callbackQueryId = ""
 
-    // Handle incoming messages
-    if (!payload.message) {
-      return new Response("Not a message event", { status: 200 })
+    if (payload.callback_query) {
+      chatId = payload.callback_query.message.chat.id.toString()
+      firstName = payload.callback_query.from.first_name || "Cliente"
+      isCallback = true
+      callbackData = payload.callback_query.data
+      callbackQueryId = payload.callback_query.id
+    } else if (payload.message) {
+      chatId = payload.message.chat.id.toString()
+      text = payload.message.text || ""
+      firstName = payload.message.from?.first_name || "Cliente"
+    } else {
+      return new Response("Not a supported event", { status: 200 })
     }
-
-    const chatId = payload.message.chat.id.toString()
-    const text = payload.message.text || ""
-    const firstName = payload.message.from?.first_name || "Cliente"
 
     // 1. Get Telegram Agent Config
     const { data: agentConfig, error: agentError } = await supabaseClient
@@ -41,7 +52,6 @@ serve(async (req) => {
       .single()
 
     if (agentError || !agentConfig || !agentConfig.is_active) {
-      console.log("Agent config not found or inactive for tenant:", tenantId)
       return new Response("Agent inactive or not configured", { status: 200 })
     }
 
@@ -49,11 +59,23 @@ serve(async (req) => {
     const tenantName = agentConfig.tenants?.name || "Nossa Loja"
     const features = agentConfig.features || []
 
-    const sendTelegramMessage = async (msgText: string) => {
+    const sendTelegramMessage = async (msgText: string, replyMarkup: any = null) => {
+      const body: any = { chat_id: chatId, text: msgText, parse_mode: 'Markdown' }
+      if (replyMarkup) {
+        body.reply_markup = replyMarkup
+      }
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: msgText })
+        body: JSON.stringify(body)
+      })
+    }
+
+    const answerCallback = async (cbId: string) => {
+      await fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: cbId })
       })
     }
 
@@ -65,12 +87,10 @@ serve(async (req) => {
       .eq('telegram_chat_id', chatId)
       .maybeSingle()
 
-    // 3. Customer Linking Flow
-    if (!customer) {
-      // Check if user is sending a phone number to link
+    // 3. Customer Linking Flow (If not registered)
+    if (!customer && !isCallback) {
       const phoneMatch = text.replace(/\D/g, '')
       if (phoneMatch.length >= 10 && phoneMatch.length <= 11) {
-        // Link to existing customer or create a new one
         let { data: existingCustomer } = await supabaseClient
           .from('customers')
           .select('*')
@@ -80,27 +100,121 @@ serve(async (req) => {
 
         if (existingCustomer) {
           await supabaseClient.from('customers').update({ telegram_chat_id: chatId }).eq('id', existingCustomer.id)
-          await sendTelegramMessage(`Perfeito, ${firstName}! Seu Telegram foi vinculado à sua conta existente com sucesso. Em que posso te ajudar hoje?`)
+          await sendTelegramMessage(`Perfeito, ${firstName}! Seu Telegram foi vinculado à sua conta existente. Use o menu abaixo para navegar:`)
         } else {
-          const { data: newCustomer, error: insertError } = await supabaseClient
+          const { error: insertError } = await supabaseClient
             .from('customers')
             .insert({ tenant_id: tenantId, name: firstName, phone: phoneMatch, telegram_chat_id: chatId, cashback_balance: 0 })
             .select()
             .single()
           
           if (!insertError) {
-             await sendTelegramMessage(`Bem-vindo, ${firstName}! Seu cadastro foi realizado com sucesso. Em que posso te ajudar hoje?`)
+             await sendTelegramMessage(`Bem-vindo, ${firstName}! Seu cadastro foi realizado com sucesso.`)
           }
         }
-        return new Response("Customer linked", { status: 200 })
+        text = "menu" // Trigger menu on link success
+        customer = { name: firstName } // Mock customer object to proceed
       } else {
-        // Ask for phone number
-        await sendTelegramMessage(`Olá, ${firstName}! Para podermos vincular sua conta e te dar acesso a comprovantes e descontos, por favor nos envie seu número de telefone/WhatsApp com DDD (ex: 11999999999).`)
+        await sendTelegramMessage(`Olá, ${firstName}! Para podermos vincular sua conta e te dar acesso a pedidos e descontos, por favor nos envie seu número de WhatsApp com DDD (ex: 11999999999).`)
         return new Response("Asked for phone", { status: 200 })
       }
     }
 
-    // 4. Data Collection for Gemini
+    // Se o cliente não foi encontrado e era um callback, ignoramos
+    if (!customer) {
+      if (isCallback) await answerCallback(callbackQueryId)
+      return new Response("No customer", { status: 200 })
+    }
+
+    // 4. Send Menu for Greetings or "/start"
+    const isGreeting = /^(oi|ola|olá|menu|\/start|bom dia|boa tarde|boa noite)/i.test(text.trim())
+    
+    if (isGreeting && !isCallback) {
+      const inlineKeyboard = {
+        inline_keyboard: [
+          [
+            { text: "🛍️ Ver Produtos", callback_data: "action_catalog" },
+            { text: "📦 Meus Pedidos", callback_data: "action_orders" }
+          ],
+          [
+            { text: "💰 Meu Cashback/Carteira", callback_data: "action_cashback" },
+            { text: "🤖 Tirar Dúvida com IA", callback_data: "action_ai" }
+          ],
+          [
+            { text: "🧑‍💻 Falar com Atendente", callback_data: "action_human" }
+          ]
+        ]
+      }
+      await sendTelegramMessage(`Olá ${customer.name}, bem-vindo(a) ao atendimento da *${tenantName}*! Como posso te ajudar hoje?`, inlineKeyboard)
+      return new Response("Menu sent", { status: 200 })
+    }
+
+    // 5. Handle Callback Queries
+    if (isCallback) {
+      await answerCallback(callbackQueryId) // Remove loading spinner
+
+      if (callbackData === 'action_catalog') {
+        const { data: products } = await supabaseClient
+          .from('products')
+          .select('name, price, stock_quantity')
+          .eq('tenant_id', tenantId)
+          .gt('stock_quantity', 0)
+          .limit(10)
+        
+        let msg = "📦 *Nosso Catálogo de Produtos:*\n\n"
+        if (products && products.length > 0) {
+          products.forEach(p => {
+            msg += `▫️ *${p.name}* - R$ ${Number(p.price).toFixed(2)}\n`
+          })
+          msg += "\nPara comprar, clique em *Falar com Atendente* ou envie uma mensagem descrevendo o que deseja!"
+        } else {
+          msg = "No momento não temos produtos cadastrados em estoque."
+        }
+        await sendTelegramMessage(msg)
+        return new Response("Catalog sent", { status: 200 })
+      }
+
+      if (callbackData === 'action_orders') {
+        const { data: sales } = await supabaseClient
+          .from('sales')
+          .select('id, total_amount, status, created_at')
+          .eq('tenant_id', tenantId)
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+        
+        let msg = "🧾 *Seus Últimos Pedidos:*\n\n"
+        if (sales && sales.length > 0) {
+          sales.forEach(s => {
+            msg += `▫️ Pedido #${s.id.slice(0, 8)} | R$ ${Number(s.total_amount).toFixed(2)} | *${s.status}*\n`
+          })
+        } else {
+          msg = "Você ainda não possui pedidos registrados com a gente."
+        }
+        await sendTelegramMessage(msg)
+        return new Response("Orders sent", { status: 200 })
+      }
+
+      if (callbackData === 'action_cashback') {
+        const balance = customer.cashback_balance ? Number(customer.cashback_balance).toFixed(2) : "0.00"
+        await sendTelegramMessage(`💰 *Sua Carteira de Cashback*\n\nVocê possui *R$ ${balance}* disponíveis para usar na sua próxima compra na ${tenantName}!`)
+        return new Response("Cashback sent", { status: 200 })
+      }
+
+      if (callbackData === 'action_human') {
+        await sendTelegramMessage(`🧑‍💻 Um momento! Já vou transferir você para um de nossos atendentes reais. Aguarde na linha...`)
+        return new Response("Handoff sent", { status: 200 })
+      }
+
+      if (callbackData === 'action_ai') {
+        await sendTelegramMessage(`🤖 Certo! Sou a Inteligência Artificial da loja. Você pode me perguntar sobre nosso horário, endereço, produtos ou qualquer outra dúvida. O que deseja saber?`)
+        return new Response("AI prompt sent", { status: 200 })
+      }
+
+      return new Response("Callback handled", { status: 200 })
+    }
+
+    // 6. Handle Free Text (Gemini AI)
     let productCatalogText = ""
     let customerOrdersText = ""
 
@@ -119,23 +233,7 @@ serve(async (req) => {
       }
     }
 
-    if (features.includes('receive_reservations') || features.includes('send_receipts')) {
-      const { data: sales } = await supabaseClient
-        .from('sales')
-        .select('id, total_amount, status, created_at')
-        .eq('tenant_id', tenantId)
-        .eq('customer_id', customer.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      if (sales && sales.length > 0) {
-        customerOrdersText = `Histórico de Pedidos de ${customer.name}:\n` + sales.map(s => 
-          `- Pedido #${s.id.slice(0, 8)} | Total: R$ ${Number(s.total_amount).toFixed(2)} | Status: ${s.status} | Data: ${new Date(s.created_at).toLocaleDateString('pt-BR')}`
-        ).join('\n')
-      }
-    }
-
-    // 5. Build Gemini Prompt
+    // Build Gemini Prompt
     const systemInstruction = `
 Você é o assistente virtual autônomo do Telegram da empresa *${tenantName}*. 
 Responda sempre em Português do Brasil com tom simpático, prestativo e comercial.
@@ -146,18 +244,12 @@ Diretriz Principal da Loja:
 
 INFORMAÇÕES DISPONÍVEIS:
 ${productCatalogText ? `\n--- PRODUTOS ---\n${productCatalogText}\n` : ''}
-${customerOrdersText ? `\n--- HISTÓRICO DE COMPRAS DO CLIENTE ---\n${customerOrdersText}\n` : ''}
 
 REGRAS DE CONDUTA E RECURSOS ATIVOS:
-1. Módulo Vendas: ${features.includes('sell_products') ? 'ATIVO. Você pode oferecer produtos do catálogo acima.' : 'INATIVO. Você não vende produtos diretamente.'}
-2. Módulo Reservas: ${features.includes('receive_reservations') ? 'ATIVO. Você pode tirar dúvidas sobre reservas.' : 'INATIVO.'}
-3. Módulo Comprovantes: ${features.includes('send_receipts') ? 'ATIVO. Você pode consultar compras passadas.' : 'INATIVO.'}
-
 4. DIRECIONAMENTO DE ATENDIMENTO HUMANO (HANDOFF):
 Se o cliente pedir expressamente para falar com um humano, responda confirmando que irá transferi-lo para um atendente e termine sua mensagem contendo estritamente a tag especial: [TRANSFER_HUMANO].
 `;
 
-    // 6. Invoke Gemini API
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiApiKey) {
       console.error("Gemini API Key missing!")
@@ -182,15 +274,10 @@ Se o cliente pedir expressamente para falar com um humano, responda confirmando 
     const geminiData = await geminiResponse.json()
     let responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não consegui processar sua mensagem no momento."
 
-    // 7. Check Handoff
     if (responseText.includes("[TRANSFER_HUMANO]")) {
       responseText = responseText.replace("[TRANSFER_HUMANO]", "").trim()
-      if (agentConfig.handoff_enabled) {
-        console.log(`Handoff triggado para o cliente: ${customer.name}`)
-      }
     }
 
-    // 8. Send Reply via Telegram
     await sendTelegramMessage(responseText)
 
     return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } })
