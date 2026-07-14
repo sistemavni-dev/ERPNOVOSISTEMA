@@ -258,9 +258,7 @@ export default function POS() {
             customer_phone: updatedCustomerInfo.phone,
             cashback_earned: cashbackEarned + changeToAddToWallet,
             cashback_balance: Math.max(0, (updatedCustomerInfo.cashback_balance || 0) + totalCashbackToAdd)
-          }
-
-      supabase.functions.invoke('whatsapp-webhook', { body: webhookPayload }).catch(console.error)
+      supabase.functions.invoke('telegram-notifier', { body: webhookPayload }).catch(console.error)
     }
 
     // 6. Preparar Recibo Não Fiscal

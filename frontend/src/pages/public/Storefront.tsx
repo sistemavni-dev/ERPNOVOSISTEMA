@@ -140,7 +140,7 @@ export default function Storefront() {
     await supabase.from('sale_items').insert(saleItems)
 
     // 4. O próprio sistema dispara o Webhook via servidor
-    supabase.functions.invoke('whatsapp-webhook', { 
+    supabase.functions.invoke('telegram-notifier', { 
       body: { 
         type: 'new_online_order',
         sale_id: sale.id, 

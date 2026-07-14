@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock } from "lucide-react"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock, User, Megaphone } from "lucide-react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 
 const COLORS = ['#a855f7', '#6366f1', '#06b6d4', '#3b82f6', '#14b8a6', '#64748b']
@@ -167,7 +167,10 @@ export default function TenantDashboard() {
     if (tenantError || !tenantData) {
       console.error(tenantError)
     } else {
-      setProfile({ tenants: tenantData }) // Mantendo a estrutura para não quebrar o JSX
+      setProfile({ 
+        full_name: user.user_metadata?.full_name,
+        tenants: tenantData 
+      }) // Mantendo a estrutura para não quebrar o JSX
       
       if (tenantData.status !== 'active' && tenantData.status !== 'pending') {
         alert("O status da sua empresa é: " + tenantData.status)
@@ -260,13 +263,16 @@ export default function TenantDashboard() {
 
       {/* Sidebar Tenant */}
       <aside className={`w-full md:w-64 border-r border-white/5 bg-slate-950/40 backdrop-blur-xl flex-col absolute md:relative z-40 h-[calc(100vh-73px)] md:h-screen transition-transform duration-300 ease-in-out ${isMobileMenuOpen ? 'translate-x-0 flex' : '-translate-x-full md:translate-x-0 hidden md:flex'} top-[73px] md:top-0`}>
-        <div className="p-6 hidden md:block border-b border-white/5">
+        <div className="p-6 hidden md:block border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors" onClick={() => navigate('/perfil')}>
           <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
             <LayoutDashboard className="w-5 h-5 text-purple-400" /> {profile?.tenants?.name || 'Sua Empresa'}
           </h2>
-          <p className="text-[10px] font-mono text-purple-400 uppercase tracking-widest mt-1">
+          <p className="text-[10px] font-mono text-purple-400 uppercase tracking-widest mt-1 group-hover:text-purple-300">
             Olá, {profile?.full_name || 'Usuário'} ({profile?.tenants?.role === 'cashier' ? 'Caixa' : (profile?.tenants?.role === 'manager' ? 'Gerente' : 'Admin')})
           </p>
+          <div className="text-xs text-zinc-500 mt-2 flex items-center gap-1">
+            <User className="w-3 h-3" /> Editar Perfil
+          </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">
           <Button variant="secondary" className="w-full justify-start gap-2 bg-white/5 text-white border-0 hover:bg-white/10" onClick={() => navigate('/dashboard')}>
@@ -280,6 +286,9 @@ export default function TenantDashboard() {
           </Button>
           <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/clientes') : navigate('/planos?blocked=true')}>
             <Users className="w-4 h-4" /> CRM (Clientes) {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
+          </Button>
+          <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasOuroAccess && 'opacity-70'}`} onClick={() => hasOuroAccess ? navigate('/campanhas') : navigate('/planos?blocked=true')}>
+            <Megaphone className="w-4 h-4 text-pink-500" /> Campanhas {!hasOuroAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}
           </Button>
           <Button variant="ghost" className={`w-full justify-start gap-2 text-zinc-400 hover:text-white hover:bg-white/5 ${!hasOuroAccess && 'opacity-70'}`} onClick={() => hasOuroAccess ? navigate('/clube-membros') : navigate('/planos?blocked=true')}>
             <Crown className="w-4 h-4 text-purple-400" /> Club de Membros {!hasOuroAccess && <Lock className="w-3 h-3 ml-auto text-zinc-600" />}

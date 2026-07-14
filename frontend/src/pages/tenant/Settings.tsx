@@ -23,14 +23,14 @@ export default function Settings() {
   const [storeDescription, setStoreDescription] = useState("")
   const [plan, setPlan] = useState<string | null>(null)
 
-  // Estados do Agente de WhatsApp
+  // Estados do Agente de Telegram
   const [agentEnabled, setAgentEnabled] = useState(false)
-  const [agentNumber, setAgentNumber] = useState("")
+  const [botToken, setBotToken] = useState("")
+  const [botUsername, setBotUsername] = useState("")
   const [agentPrompt, setAgentPrompt] = useState("Você é um atendente simpático. Tire dúvidas de clientes.")
   const [handoffEnabled, setHandoffEnabled] = useState(true)
   const [features, setFeatures] = useState<string[]>([])
-  const [instanceStatus, setInstanceStatus] = useState<"disconnected" | "connected" | "connecting">("disconnected")
-  const [qrCodeUrl, setQrCodeUrl] = useState("")
+  const [webhookStatus, setWebhookStatus] = useState<"disconnected" | "connected" | "error">("disconnected")
 
   useEffect(() => {
     loadProfile()
@@ -58,20 +58,21 @@ export default function Settings() {
         setPlan(tenant.plan)
       }
 
-      // Buscar configurações do agente
+      // Buscar configurações do agente do telegram
       const { data: agent } = await supabase
-        .from('whatsapp_agents')
+        .from('telegram_agents')
         .select('*')
         .eq('id', user.id)
         .maybeSingle()
 
       if (agent) {
         setAgentEnabled(agent.is_active)
-        setAgentNumber(agent.whatsapp_number || "")
+        setBotToken(agent.bot_token || "")
+        setBotUsername(agent.bot_username || "")
         setAgentPrompt(agent.agent_prompt || "Você é um atendente simpático. Tire dúvidas de clientes.")
         setHandoffEnabled(agent.handoff_enabled)
         setFeatures(agent.features || [])
-        setInstanceStatus(agent.instance_status || "disconnected")
+        setWebhookStatus(agent.webhook_status || "disconnected")
       }
     }
     setLoading(false)
@@ -97,18 +98,31 @@ export default function Settings() {
       .eq('id', profileId)
 
     // Salvar configurações do agente em conjunto
+    let currentWebhookStatus = webhookStatus
+    if (botToken) {
+      currentWebhookStatus = 'connected'
+      // Registrar webhook silenciosamente no Telegram
+      const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telegram-webhook?tenant_id=${profileId}`
+      fetch(`https://api.telegram.org/bot${botToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}`)
+        .catch(console.error)
+    } else {
+      currentWebhookStatus = 'disconnected'
+    }
+
     await supabase
-      .from('whatsapp_agents')
+      .from('telegram_agents')
       .upsert({
         id: profileId,
-        whatsapp_number: agentNumber,
+        bot_token: botToken,
+        bot_username: botUsername,
         is_active: agentEnabled,
         features: features,
         agent_prompt: agentPrompt,
         handoff_enabled: handoffEnabled,
-        instance_name: `instance_${profileId.slice(0, 8)}`,
-        instance_status: instanceStatus
+        webhook_status: currentWebhookStatus
       })
+
+    setWebhookStatus(currentWebhookStatus)
 
     setLoading(false)
 
@@ -124,28 +138,27 @@ export default function Settings() {
     }
   }
 
-  // Simular conexão da Evolution API
-  const handleConnectWhatsApp = () => {
-    if (!agentNumber) {
-      alert("Por favor, preencha o número de WhatsApp do agente primeiro.")
+  // Testar conexão com Telegram
+  const handleTestBot = async () => {
+    if (!botToken) {
+      alert("Por favor, preencha o Token do Bot e salve as configurações primeiro.")
       return
     }
-
-    setInstanceStatus("connecting")
-    // Gerar QR code falso
-    setQrCodeUrl("https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=EvolutionAPIMockConnectionQR")
-
-    // Conectar após 6 segundos automaticamente
-    setTimeout(async () => {
-      setInstanceStatus("connected")
-      setQrCodeUrl("")
-      if (profileId) {
-        await supabase
-          .from('whatsapp_agents')
-          .update({ instance_status: 'connected' })
-          .eq('id', profileId)
+    try {
+      const resp = await fetch(`https://api.telegram.org/bot${botToken}/getMe`)
+      const data = await resp.json()
+      if (data.ok) {
+        alert(`Conectado com sucesso ao bot: @${data.result.username}`)
+        setBotUsername(data.result.username)
+        setWebhookStatus("connected")
+      } else {
+        alert("Erro ao validar Token do Telegram. Verifique se copiou corretamente do @BotFather.")
+        setWebhookStatus("error")
       }
-    }, 6000)
+    } catch (e: any) {
+      alert("Erro na conexão: " + e.message)
+      setWebhookStatus("error")
+    }
   }
 
   const toggleFeature = (feat: string) => {
@@ -271,14 +284,14 @@ export default function Settings() {
 
           </div>
 
-          {/* Seção do Agente Autônomo de WhatsApp */}
+            {/* Seção do Agente Autônomo de Telegram */}
           <div className="mt-8">
             <Card className="border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Bot className="w-5 h-5 text-primary" /> Agente Autônomo de WhatsApp IA
+                  <Bot className="w-5 h-5 text-primary" /> Agente Autônomo do Telegram IA
                 </CardTitle>
-                <CardDescription>Configure as diretrizes e módulos que a Inteligência Artificial controlará no seu WhatsApp.</CardDescription>
+                <CardDescription>Configure as diretrizes e módulos que a Inteligência Artificial controlará no seu Bot do Telegram.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {plan === 'prata' ? (
@@ -305,17 +318,20 @@ export default function Settings() {
                         onChange={(e) => setAgentEnabled(e.target.checked)}
                       />
                       <label htmlFor="agentEnabled" className="flex-1 cursor-pointer text-sm font-semibold flex items-center gap-2">
-                        Ativar Agente de WhatsApp Autônomo
+                        Ativar Agente Autônomo no Telegram
                       </label>
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-sm font-medium flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-primary" /> Número do WhatsApp do Agente</label>
+                      <label className="text-sm font-medium flex items-center gap-1.5"><Smartphone className="w-4 h-4 text-primary" /> Bot Token (obtido no @BotFather)</label>
                       <Input 
-                        value={agentNumber} 
-                        onChange={e => setAgentNumber(e.target.value)} 
-                        placeholder="Ex: 5511999999999" 
+                        value={botToken} 
+                        onChange={e => setBotToken(e.target.value)} 
+                        placeholder="Ex: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz" 
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Crie um bot falando com o @BotFather no Telegram, copie o token e cole aqui.
+                      </p>
                     </div>
 
                     <div className="space-y-2">
@@ -386,38 +402,29 @@ export default function Settings() {
                       </div>
                     </div>
 
-                    {/* Conexão com Evolution API */}
+                    {/* Conexão com Telegram Bot */}
                     <div className="p-4 bg-background border border-border rounded-lg space-y-4">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">Conexão Evolution API</span>
+                        <span className="text-sm font-semibold">Conexão Telegram</span>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                          instanceStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400' :
-                          instanceStatus === 'connecting' ? 'bg-amber-500/10 text-amber-400' : 'bg-rose-500/10 text-rose-400'
+                          webhookStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-400' :
+                          webhookStatus === 'error' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'
                         }`}>
-                          {instanceStatus === 'connected' ? 'Conectado' :
-                           instanceStatus === 'connecting' ? 'Gerando QR...' : 'Desconectado'}
+                          {webhookStatus === 'connected' ? 'Conectado (Webhook Ativo)' :
+                           webhookStatus === 'error' ? 'Erro no Token' : 'Pendente'}
                         </span>
                       </div>
 
-                      {instanceStatus === 'disconnected' && (
-                        <Button type="button" onClick={handleConnectWhatsApp} className="w-full bg-primary hover:bg-primary/95 text-white">
-                          Conectar WhatsApp
-                        </Button>
-                      )}
+                      <Button type="button" onClick={handleTestBot} className="w-full bg-primary hover:bg-primary/95 text-white">
+                        Testar Token e Conectar
+                      </Button>
 
-                      {instanceStatus === 'connecting' && qrCodeUrl && (
-                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg border border-border max-w-[200px] mx-auto gap-2">
-                          <img src={qrCodeUrl} alt="Conexão WhatsApp QR" className="w-36 h-36" />
-                          <p className="text-[10px] text-zinc-500 text-center uppercase tracking-widest font-mono">Escaneie o QR Code</p>
-                        </div>
-                      )}
-
-                      {instanceStatus === 'connected' && (
-                        <div className="space-y-2">
-                          <p className="text-xs text-zinc-400">Instância ativa e pronta para responder no número *{agentNumber}*.</p>
-                          <Button type="button" variant="outline" onClick={() => setInstanceStatus('disconnected')} className="w-full border-white/5 hover:bg-rose-500/10 hover:text-rose-400">
-                            Desconectar Instância
-                          </Button>
+                      {webhookStatus === 'connected' && botUsername && (
+                        <div className="space-y-2 pt-2 border-t border-border mt-4 text-center">
+                          <p className="text-sm text-zinc-400">Seu bot está online!</p>
+                          <a href={`https://t.me/${botUsername}`} target="_blank" rel="noreferrer" className="text-primary hover:underline font-bold flex items-center justify-center gap-2">
+                            t.me/{botUsername}
+                          </a>
                         </div>
                       )}
                     </div>

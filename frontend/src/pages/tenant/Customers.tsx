@@ -120,21 +120,27 @@ export default function Customers() {
     }
   }
 
-  const sendWhatsAppReminder = (phone: string, name: string, type: 'cobrança' | 'vip') => {
-    if (!phone) {
-      alert("Este cliente não possui telefone cadastrado.")
+  const sendTelegramReminder = async (chatId: string | undefined, name: string, type: 'cobrança' | 'vip') => {
+    if (!chatId) {
+      alert("Este cliente não vinculou sua conta do Telegram ao bot da loja.")
       return
     }
-
-    const cleanPhone = phone.replace(/\D/g, '')
-    const formattedPhone = cleanPhone.length <= 11 ? `55${cleanPhone}` : cleanPhone
 
     const text = type === 'cobrança' 
       ? `Olá ${name}, tudo bem? Passando para lembrar da sua conta pendente com a gente. Se precisar de facilidades para pagamento ou boleto, fale com a gente! 😉`
       : `Olá ${name}! Como membro VIP do nosso Clube de Vantagens, preparamos ofertas incríveis para você hoje! Venha conferir! 💎`
 
-    const url = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${encodeURIComponent(text)}`
-    window.open(url, '_blank')
+    if (!confirm(`Deseja enviar a seguinte mensagem pelo Bot do Telegram?\n\n"${text}"`)) return
+
+    try {
+      const { error } = await supabase.functions.invoke('dispatch-campaign', {
+        body: { target_customers: [chatId], text }
+      })
+      if (error) throw error
+      alert("Mensagem enviada com sucesso pelo Bot!")
+    } catch (e: any) {
+      alert("Erro ao enviar mensagem: " + e.message)
+    }
   }
 
   const handleActionOrder = async (orderId: string, currentStatus: string, customerPhone: string, customerName: string) => {
@@ -170,7 +176,7 @@ export default function Customers() {
 
     // Dispara o Webhook avisando o cliente apenas se o plano for OURO
     if (tenantPlan === 'ouro') {
-      supabase.functions.invoke('whatsapp-webhook', { 
+      supabase.functions.invoke('telegram-notifier', { 
         body: { 
           type: webhookType,
           sale_id: orderId, 
@@ -366,13 +372,14 @@ export default function Customers() {
                         <td className="px-4 py-3 text-muted-foreground">{c.document}</td>
                         <td className="px-4 py-3 font-bold text-green-500">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(c.cashback_balance || 0)}
+                          {c.telegram_chat_id && <div className="text-[10px] text-purple-400 font-normal mt-1">Telegram Vinculado</div>}
                         </td>
                          <td className="px-4 py-3 text-right">
-                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-green-500 mr-2" onClick={() => sendWhatsAppReminder(c.phone, c.name, 'cobrança')} title="Cobrar por WhatsApp">
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-green-500 mr-2" onClick={() => sendTelegramReminder(c.telegram_chat_id, c.name, 'cobrança')} title="Cobrar por Telegram">
                             <MessageSquare className="w-4 h-4 text-emerald-500" />
                           </Button>
                           {c.is_club_member && (
-                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-purple-400 mr-2" onClick={() => sendWhatsAppReminder(c.phone, c.name, 'vip')} title="Enviar Oferta VIP">
+                            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-purple-400 mr-2" onClick={() => sendTelegramReminder(c.telegram_chat_id, c.name, 'vip')} title="Enviar Oferta VIP via Telegram">
                               <Sparkles className="w-4 h-4 text-purple-400" />
                             </Button>
                           )}

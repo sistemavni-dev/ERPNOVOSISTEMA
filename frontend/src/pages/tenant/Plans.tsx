@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../../components/ui/card"
 import { Input } from "../../components/ui/input"
-import { CheckCircle, AlertCircle, LogOut, MessageCircle, Package, DollarSign, Store, Clipboard, ExternalLink, Trash2, Crown, Users, Lock } from "lucide-react"
+import { CheckCircle, AlertCircle, LogOut, Package, DollarSign, Store, Clipboard, ExternalLink, Trash2, Crown, Users, Lock } from "lucide-react"
 
 export default function Plans() {
   const [loading, setLoading] = useState(true)
@@ -378,7 +378,7 @@ export default function Plans() {
                   </div>
 
                   <Button type="submit" disabled={checkoutLoading} className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold h-11 border-0 shadow-lg shadow-purple-500/25 mt-2">
-                    {checkoutLoading ? "Processando Assinatura no Asaas..." : `Gerar Assinatura (R$ ${checkoutPlan === 'ouro' ? '159,90' : checkoutPlan === 'prata' ? '89,90' : '49,90'}/mês)`}
+                    {checkoutLoading ? "Processando Assinatura no Asaas..." : `Gerar Assinatura (R$ ${checkoutPlan === 'ouro' ? '199,90' : checkoutPlan === 'prata' ? '109,90' : '49,90'}/mês)`}
                   </Button>
                 </form>
               ) : (
@@ -493,7 +493,7 @@ export default function Plans() {
               <CardTitle className="text-2xl font-bold text-zinc-400">Plano Prata</CardTitle>
               <CardDescription className="text-zinc-500">Gestão completa e PDV para o seu comércio.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-white">R$ 89,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-white">R$ 109,90</span><span className="text-zinc-500 text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4 flex-1">
@@ -522,29 +522,32 @@ export default function Plans() {
             <CardHeader className="bg-purple-900/10 rounded-t-lg pt-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-600 to-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider py-1 px-3 rounded-bl-lg">Recomendado</div>
               <CardTitle className="text-2xl font-bold text-purple-400 flex items-center gap-2">
-                <Crown className="w-5 h-5 text-purple-400" /> Plano Ouro
+                <Crown className="w-5 h-5 text-purple-400" /> Plano Ouro 
+                <span className="ml-2 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-nowrap">Em Breve!</span>
               </CardTitle>
               <CardDescription className="text-zinc-500">Automação de WhatsApp, IA e Clube VIP.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-purple-400">R$ 159,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-purple-400">R$ 199,90</span><span className="text-zinc-500 text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-6 flex-1">
               <ul className="space-y-3 text-sm text-zinc-300">
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> <Store className="w-4 h-4 text-purple-500"/> Tudo do Plano Prata</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> <MessageCircle className="w-4 h-4 text-purple-500"/> Agente de WhatsApp Autônomo com IA</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Comprovantes de Vendas automáticos</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Cobrança de Contas Vencidas automática</li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Ativar Agente de WhatsApp Autônomo</span></div></li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Vender Produtos:</span> Consultar preços e sugerir itens do estoque.</div></li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Enviar Comprovantes:</span> Informar detalhes das compras do caixa.</div></li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Receber Reservas da Vitrine:</span> Confirmar pedidos feitos online.</div></li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Direcionamento do Agente</span> (Prompt de Instruções)</div></li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Clube de Membros VIP com Cashback</li>
                 <li className="flex items-center gap-2 font-bold text-purple-400 bg-purple-950/20 p-2.5 rounded-md border border-purple-500/10"><CheckCircle className="w-4 h-4 text-purple-400" /> Suporte Prioritário 24/7</li>
               </ul>
             </CardContent>
             <CardFooter className="pb-8 pt-4">
               <Button 
-                className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold shadow-lg shadow-purple-500/25 border-0"
-                onClick={() => handleSubscribe('ouro')}
+                disabled
+                className="w-full h-11 bg-slate-800 text-zinc-400 font-bold border-0 cursor-not-allowed opacity-80"
               >
-                Assinar Plano Ouro
+                Em Breve
               </Button>
             </CardFooter>
           </Card>

@@ -14,6 +14,9 @@ import Plans from './pages/tenant/Plans'
 import Suppliers from './pages/tenant/Suppliers'
 import SupplierQuotes from './pages/tenant/SupplierQuotes'
 import MemberClub from './pages/tenant/MemberClub'
+import Campaigns from './pages/tenant/Campaigns'
+import Profile from './pages/tenant/Profile'
+import { PwaPrompt } from './components/PwaPrompt'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 
@@ -136,6 +139,7 @@ function PlanRoute({ children, allowedPlans }: { children: React.ReactNode, allo
 function App() {
   return (
     <Router>
+      <PwaPrompt />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
@@ -143,11 +147,13 @@ function App() {
         <Route path="/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
         <Route path="/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
         <Route path="/clientes" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Customers /></PlanRoute></ProtectedRoute>} />
+        <Route path="/campanhas" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><Campaigns /></PlanRoute></ProtectedRoute>} />
         <Route path="/clube-membros" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><MemberClub /></PlanRoute></ProtectedRoute>} />
         <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Finance /></PlanRoute></AdminRoute></ProtectedRoute>} />
         <Route path="/fornecedores" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Suppliers /></PlanRoute></ProtectedRoute>} />
         <Route path="/orcamentos" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><SupplierQuotes /></PlanRoute></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Settings /></AdminRoute></ProtectedRoute>} />
+        <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
         <Route path="/planos" element={<Plans />} />
         <Route path="/loja/:slug" element={<Storefront />} />
         <Route path="/super-admin" element={<SuperAdminDashboard />} />

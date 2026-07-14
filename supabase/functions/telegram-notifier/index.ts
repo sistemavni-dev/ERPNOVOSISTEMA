@@ -1,15 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
 
-console.log("WhatsApp Webhook Started")
+console.log("Telegram Notifier Started")
 
 serve(async (req) => {
-  // CORS Headers
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-    }})
+    return new Response('ok', { headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type" } })
   }
 
   try {
@@ -21,8 +17,9 @@ serve(async (req) => {
     const payload = await req.json()
     const { sale_id, type, customer_name, customer_phone, cashback_earned, cashback_balance } = payload
 
-    // Caso não venham no payload, busca do banco
-    let phone = customer_phone
+    // 1. Fetch sale details to get tenant_id and customer_id
+    let tenantId = null
+    let customerId = null
     let name = customer_name
     let total_amount = "0.00"
     let tenantName = "Nossa Loja"
@@ -30,25 +27,37 @@ serve(async (req) => {
     if (sale_id) {
       const { data: saleData } = await supabaseClient
         .from('sales')
-        .select('total_amount, customers(name, phone), tenants(name)')
+        .select('tenant_id, customer_id, total_amount, customers(name, telegram_chat_id), tenants(name)')
         .eq('id', sale_id)
         .single()
 
       if (saleData) {
-        if (!phone) phone = saleData.customers?.phone
-        if (!name) name = saleData.customers?.name
+        tenantId = saleData.tenant_id
+        customerId = saleData.customer_id
+        if (!name) name = saleData.customers?.name || "Cliente"
         total_amount = saleData.total_amount
         tenantName = saleData.tenants?.name || tenantName
       }
     }
 
-    if (!phone) {
-      return new Response(JSON.stringify({ message: "Cliente sem telefone cadastrado." }), { status: 200 })
+    if (!customerId) {
+      return new Response(JSON.stringify({ message: "Venda sem cliente associado." }), { status: 200 })
     }
 
-    // Limpeza de número para API (remover não-numéricos)
-    const cleanPhone = phone.replace(/\D/g, '')
+    // 2. Lookup telegram_chat_id
+    const { data: customerData } = await supabaseClient
+      .from('customers')
+      .select('telegram_chat_id')
+      .eq('id', customerId)
+      .single()
 
+    const chatId = customerData?.telegram_chat_id
+
+    if (!chatId) {
+      return new Response(JSON.stringify({ message: "Cliente não possui Telegram vinculado (chat_id)." }), { status: 200 })
+    }
+
+    // 3. Build message text
     let textMessage = ""
 
     switch(type) {
@@ -78,47 +87,35 @@ serve(async (req) => {
         textMessage = `Olá ${name}! Obrigado pela preferência na *${tenantName}*! Seu recibo de R$ ${total_amount} foi gerado.`
     }
 
-    // Configurações Evolution API
-    const evoUrl = Deno.env.get('EVOLUTION_API_URL')
-    const evoKey = Deno.env.get('EVOLUTION_API_KEY')
-    const evoInstance = Deno.env.get('EVOLUTION_INSTANCE')
+    // 4. Get Agent Config (Bot Token)
+    const { data: agentConfig } = await supabaseClient
+      .from('telegram_agents')
+      .select('bot_token, is_active')
+      .eq('id', tenantId)
+      .single()
 
-    if (!evoUrl || !evoKey || !evoInstance) {
-      console.error("Variáveis da Evolution API não configuradas!")
-      return new Response(JSON.stringify({ error: "Configurações de WhatsApp ausentes no backend." }), { status: 500 })
+    if (!agentConfig || !agentConfig.is_active || !agentConfig.bot_token) {
+      return new Response(JSON.stringify({ error: "Integração Telegram não configurada ou inativa para este tenant." }), { status: 200 })
     }
 
-    // Disparo via Evolution API
-    const response = await fetch(`${evoUrl}/message/sendText/${evoInstance}`, {
+    // 5. Send Telegram Message
+    const response = await fetch(`https://api.telegram.org/bot${agentConfig.bot_token}/sendMessage`, {
       method: 'POST',
-      headers: {
-        'apikey': evoKey,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        number: cleanPhone,
-        options: {
-          delay: 1500, // Simula digitação por 1,5 segundos
-          presence: "composing"
-        },
-        textMessage: {
-          text: textMessage
-        }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text: textMessage })
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      throw new Error(`Erro na Evolution API: ${err}`)
+      throw new Error(`Erro na API do Telegram: ${await response.text()}`)
     }
 
     return new Response(
-      JSON.stringify({ success: true, message: "Mensagem WhatsApp enviada via Evolution API." }),
+      JSON.stringify({ success: true, message: "Notificação Telegram enviada com sucesso." }),
       { headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
     )
 
   } catch (error: any) {
-    console.error(error)
+    console.error("Telegram Notifier Error:", error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 400, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } }
