@@ -281,6 +281,7 @@ export default function Settings() {
                     onChange={e => setStoreDescription(e.target.value)} 
                     placeholder="Bem-vindo à nossa loja! Faça seu pedido abaixo." 
                   />
+                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tema da Vitrine</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
