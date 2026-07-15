@@ -60,15 +60,21 @@ serve(async (req) => {
     const features = agentConfig.features || []
 
     const sendTelegramMessage = async (msgText: string, replyMarkup: any = null) => {
-      const body: any = { chat_id: chatId, text: msgText, parse_mode: 'Markdown' }
+      const body: any = { chat_id: chatId, text: msgText }
+      // Removemos parse_mode: 'Markdown' global para evitar erros de formatação (ex: nomes com underline)
       if (replyMarkup) {
         body.reply_markup = replyMarkup
       }
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      const resp = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       })
+      if (!resp.ok) {
+        const errText = await resp.text()
+        console.error("Erro ao enviar mensagem Telegram:", errText)
+        throw new Error("Telegram API Error: " + errText)
+      }
     }
 
     const answerCallback = async (cbId: string) => {
@@ -87,36 +93,20 @@ serve(async (req) => {
       .eq('telegram_chat_id', chatId)
       .maybeSingle()
 
-    // 3. Customer Linking Flow (If not registered)
+    // 3. Customer Creation Flow (If not registered)
     if (!customer && !isCallback) {
-      const phoneMatch = text.replace(/\D/g, '')
-      if (phoneMatch.length >= 10 && phoneMatch.length <= 11) {
-        let { data: existingCustomer } = await supabaseClient
-          .from('customers')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .ilike('phone', `%${phoneMatch}%`)
-          .maybeSingle()
-
-        if (existingCustomer) {
-          await supabaseClient.from('customers').update({ telegram_chat_id: chatId }).eq('id', existingCustomer.id)
-          await sendTelegramMessage(`Perfeito, ${firstName}! Seu Telegram foi vinculado à sua conta existente. Use o menu abaixo para navegar:`)
-        } else {
-          const { error: insertError } = await supabaseClient
-            .from('customers')
-            .insert({ tenant_id: tenantId, name: firstName, phone: phoneMatch, telegram_chat_id: chatId, cashback_balance: 0 })
-            .select()
-            .single()
-          
-          if (!insertError) {
-             await sendTelegramMessage(`Bem-vindo, ${firstName}! Seu cadastro foi realizado com sucesso.`)
-          }
-        }
-        text = "menu" // Trigger menu on link success
-        customer = { name: firstName } // Mock customer object to proceed
+      // Cadastra o cliente automaticamente para que o menu seja liberado de imediato
+      const { data: newCustomer, error: insertError } = await supabaseClient
+        .from('customers')
+        .insert({ tenant_id: tenantId, name: firstName, telegram_chat_id: chatId, cashback_balance: 0 })
+        .select()
+        .single()
+        
+      if (!insertError && newCustomer) {
+        customer = newCustomer
       } else {
-        await sendTelegramMessage(`Olá, ${firstName}! Para podermos vincular sua conta e te dar acesso a pedidos e descontos, por favor nos envie seu número de WhatsApp com DDD (ex: 11999999999).`)
-        return new Response("Asked for phone", { status: 200 })
+        // Fallback em caso de erro no banco
+        customer = { name: firstName, id: "00000000-0000-0000-0000-000000000000" }
       }
     }
 

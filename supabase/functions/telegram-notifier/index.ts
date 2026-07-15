@@ -98,6 +98,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Integração Telegram não configurada ou inativa para este tenant." }), { status: 200 })
     }
 
+    // Auto-register webhook to ensure it is always correct
+    const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/telegram-webhook?tenant_id=${tenantId}`
+    await fetch(`https://api.telegram.org/bot${agentConfig.bot_token}/setWebhook?url=${encodeURIComponent(webhookUrl)}`)
+
+
     // 5. Send Telegram Message
     const response = await fetch(`https://api.telegram.org/bot${agentConfig.bot_token}/sendMessage`, {
       method: 'POST',

@@ -22,6 +22,7 @@ export default function Settings() {
   const [whatsapp, setWhatsapp] = useState("")
   const [storeDescription, setStoreDescription] = useState("")
   const [plan, setPlan] = useState<string | null>(null)
+  const [themeColor, setThemeColor] = useState("dark")
 
   // Estados do Agente de Telegram
   const [agentEnabled, setAgentEnabled] = useState(false)
@@ -56,6 +57,7 @@ export default function Settings() {
         setWhatsapp(tenant.whatsapp_number || "")
         setStoreDescription(tenant.store_description || "")
         setPlan(tenant.plan)
+        setThemeColor(tenant.theme_color || "dark")
       }
 
       // Buscar configurações do agente do telegram
@@ -93,7 +95,8 @@ export default function Settings() {
         address,
         store_slug: storeSlug || null, // Permite nulo se vazio
         whatsapp_number: whatsapp,
-        store_description: storeDescription
+        store_description: storeDescription,
+        theme_color: themeColor
       })
       .eq('id', profileId)
 
@@ -278,6 +281,22 @@ export default function Settings() {
                     onChange={e => setStoreDescription(e.target.value)} 
                     placeholder="Bem-vindo à nossa loja! Faça seu pedido abaixo." 
                   />
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Tema da Vitrine</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button type="button" onClick={() => setThemeColor('dark')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'dark' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-zinc-400 hover:border-zinc-500'}`}>
+                      <div className="w-4 h-4 rounded-full bg-[#07070b] border border-white/20 mr-2" />
+                      Escuro Padrão
+                    </button>
+                    <button type="button" onClick={() => setThemeColor('light')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'light' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-zinc-400 hover:border-zinc-500'}`}>
+                      <div className="w-4 h-4 rounded-full bg-[#f8fafc] border border-zinc-300 mr-2" />
+                      Branco Gelo
+                    </button>
+                    <button type="button" onClick={() => setThemeColor('purple')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'purple' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-zinc-400 hover:border-zinc-500'}`}>
+                      <div className="w-4 h-4 rounded-full bg-purple-950 border border-purple-500/50 mr-2" />
+                      Roxo Neon
+                    </button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

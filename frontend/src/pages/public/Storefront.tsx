@@ -23,6 +23,7 @@ interface Tenant {
   name: string
   store_description: string
   whatsapp_number: string
+  theme_color?: string
 }
 
 export default function Storefront() {
@@ -43,7 +44,7 @@ export default function Storefront() {
     // Busca a loja pelo slug público
     const { data: tenantData, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, name, store_description, whatsapp_number')
+      .select('id, name, store_description, whatsapp_number, theme_color')
       .eq('store_slug', slug)
       .single()
 
@@ -180,31 +181,87 @@ export default function Storefront() {
   const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.cartQuantity), 0)
   const totalItems = cart.reduce((acc, item) => acc + item.cartQuantity, 0)
 
+  const themeClasses = {
+    dark: {
+      bg: "bg-[#07070b] text-foreground dark",
+      card: "bg-slate-950/20 border-white/5",
+      header: "bg-slate-950/40 border-white/5",
+      input: "bg-slate-900 border-white/5 text-white placeholder:text-zinc-600",
+      text: "text-white",
+      textMuted: "text-zinc-400",
+      textMutedIcon: "text-zinc-500",
+      accent: "text-purple-400",
+      blob1: "bg-purple-600/5",
+      blob2: "bg-cyan-500/5",
+      cardHover: "hover:border-purple-500/30",
+      imageBg: "bg-zinc-950/50 border-white/5",
+      divider: "border-white/5",
+      overlay: "bg-slate-950/80",
+      modal: "bg-[#0e0e15] border-white/5"
+    },
+    light: {
+      bg: "bg-[#f8fafc] text-slate-900", // Branco Gelo Moderno
+      card: "bg-white/70 border-slate-200/60 shadow-xl shadow-slate-200/50",
+      header: "bg-white/80 border-slate-200 shadow-sm",
+      input: "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400 focus:ring-purple-500",
+      text: "text-slate-900",
+      textMuted: "text-slate-500",
+      textMutedIcon: "text-slate-400",
+      accent: "text-purple-600",
+      blob1: "bg-purple-600/10",
+      blob2: "bg-cyan-500/10",
+      cardHover: "hover:border-purple-500/50 hover:shadow-2xl hover:shadow-purple-500/10",
+      imageBg: "bg-slate-100 border-slate-200/60",
+      divider: "border-slate-200",
+      overlay: "bg-slate-900/40 backdrop-blur-md",
+      modal: "bg-white border-slate-200"
+    },
+    purple: {
+      bg: "bg-[#1e0a2d] text-purple-50",
+      card: "bg-purple-950/40 border-purple-800/50",
+      header: "bg-purple-950/60 border-purple-800/50",
+      input: "bg-purple-900 border-purple-800 text-purple-50 placeholder:text-purple-300/50",
+      text: "text-white",
+      textMuted: "text-purple-200/70",
+      textMutedIcon: "text-purple-400/50",
+      accent: "text-purple-300",
+      blob1: "bg-fuchsia-600/10",
+      blob2: "bg-blue-600/10",
+      cardHover: "hover:border-purple-400/50",
+      imageBg: "bg-purple-950/60 border-purple-800/50",
+      divider: "border-purple-800/50",
+      overlay: "bg-[#1e0a2d]/80",
+      modal: "bg-[#25103a] border-purple-800/50"
+    }
+  }
+
+  const t = themeClasses[(tenant.theme_color as keyof typeof themeClasses)] || themeClasses.dark
+
   return (
-    <div className="min-h-screen bg-[#07070b] text-foreground dark relative font-sans overflow-x-hidden pb-24">
+    <div className={`min-h-screen ${t.bg} relative font-sans overflow-x-hidden pb-24 transition-colors duration-500`}>
       {/* Background blobs */}
-      <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[200px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[200px] pointer-events-none" />
+      <div className={`absolute top-[-30%] left-[-10%] w-[600px] h-[600px] ${t.blob1} rounded-full blur-[200px] pointer-events-none`} />
+      <div className={`absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] ${t.blob2} rounded-full blur-[200px] pointer-events-none`} />
 
       {/* Header */}
-      <header className="bg-slate-950/40 backdrop-blur-xl border-b border-white/5 sticky top-0 z-40 transition-all">
+      <header className={`${t.header} backdrop-blur-xl border-b sticky top-0 z-40 transition-all`}>
         <div className="container mx-auto px-4 md:px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20 text-purple-400 shadow-inner">
               <Store className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-extrabold text-white text-base md:text-lg leading-tight tracking-tight flex items-center gap-1.5">
+              <h1 className={`font-extrabold ${t.text} text-base md:text-lg leading-tight tracking-tight flex items-center gap-1.5`}>
                 {tenant.name}
                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/20">Oficial</span>
               </h1>
-              <p className="text-xs text-zinc-400 line-clamp-1 mt-0.5">{tenant.store_description || 'Vitrine Virtual & Pedidos Rápidos'}</p>
+              <p className={`text-xs ${t.textMuted} line-clamp-1 mt-0.5`}>{tenant.store_description || 'Vitrine Virtual & Pedidos Rápidos'}</p>
             </div>
           </div>
           
           <Button 
             variant="ghost" 
-            className="relative h-11 px-4 text-zinc-300 hover:text-white hover:bg-white/5 border border-white/5 bg-slate-950/20 rounded-xl transition-all gap-2"
+            className={`relative h-11 px-4 ${t.textMuted} hover:${t.text} hover:bg-black/5 dark:hover:bg-white/5 border ${t.divider} ${t.card} rounded-xl transition-all gap-2`}
             onClick={() => setCheckoutMode(true)} 
             disabled={cart.length === 0}
           >
@@ -221,16 +278,16 @@ export default function Storefront() {
 
       {/* Hero Store banner */}
       <section className="container mx-auto px-4 md:px-6 pt-8 pb-4">
-        <div className="relative rounded-2xl md:rounded-3xl border border-white/5 bg-slate-950/20 p-6 md:p-8 overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className={`relative rounded-2xl md:rounded-3xl border ${t.divider} ${t.card} p-6 md:p-8 overflow-hidden shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6`}>
           <div className="absolute inset-0 bg-grid-pattern opacity-[0.02]" />
-          <div className="absolute top-0 right-0 w-80 h-80 bg-purple-500/5 rounded-full blur-[80px]" />
+          <div className={`absolute top-0 right-0 w-80 h-80 ${t.blob1} rounded-full blur-[80px]`} />
           
           <div className="space-y-2 z-10">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
               <Sparkles className="w-3.5 h-3.5" /> Aberto para pedidos
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Bem-vindo à nossa Vitrine</h2>
-            <p className="text-zinc-400 max-w-xl text-sm leading-relaxed">
+            <h2 className={`text-2xl md:text-3xl font-black ${t.text} tracking-tight`}>Bem-vindo à nossa Vitrine</h2>
+            <p className={`${t.textMuted} max-w-xl text-sm leading-relaxed`}>
               Adicione os produtos desejados na sacola e envie diretamente para nosso WhatsApp para finalização e retirada rápida.
             </p>
           </div>
@@ -239,34 +296,34 @@ export default function Storefront() {
 
       {/* Catalog Grid */}
       <main className="container mx-auto px-4 md:px-6 py-8">
-        <h3 className="text-lg font-black text-white mb-6 uppercase tracking-wider text-xs flex items-center gap-2">
-          <ShoppingBag className="w-4 h-4 text-purple-400" /> Catálogo de Produtos
+        <h3 className={`text-lg font-black ${t.text} mb-6 uppercase tracking-wider text-xs flex items-center gap-2`}>
+          <ShoppingBag className={`w-4 h-4 ${t.accent}`} /> Catálogo de Produtos
         </h3>
         
         {products.length === 0 ? (
-          <div className="text-center py-20 text-zinc-500 border border-dashed border-white/5 rounded-2xl bg-slate-950/10">
-            <Info className="w-12 h-12 mx-auto mb-4 text-zinc-600 opacity-40" />
-            <p className="text-zinc-400">Nenhum produto cadastrado nesta vitrine ainda.</p>
+          <div className={`text-center py-20 ${t.textMutedIcon} border border-dashed ${t.divider} rounded-2xl ${t.card}`}>
+            <Info className="w-12 h-12 mx-auto mb-4 opacity-40" />
+            <p className={`${t.textMuted}`}>Nenhum produto cadastrado nesta vitrine ainda.</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-4">
             {products.map(product => {
               const inCart = cart.find(c => c.id === product.id)
               return (
-                <Card key={product.id} className="border-white/5 hover:border-purple-500/30 transition-all flex flex-col h-full bg-slate-950/20 backdrop-blur-sm rounded-2xl overflow-hidden group shadow-lg">
+                <Card key={product.id} className={`border ${t.divider} ${t.cardHover} transition-all flex flex-col h-full ${t.card} backdrop-blur-sm rounded-2xl overflow-hidden group`}>
                   {/* Imagem do Produto */}
-                  <div className="h-36 bg-zinc-950/50 flex items-center justify-center overflow-hidden relative border-b border-white/5">
+                  <div className={`h-36 ${t.imageBg} flex items-center justify-center overflow-hidden relative border-b`}>
                     {product.image_url ? (
                       <img src={product.image_url} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-500" />
                     ) : (
-                      <ShoppingBag className="w-8 h-8 text-zinc-700 opacity-40 group-hover:scale-110 transition-transform" />
+                      <ShoppingBag className={`w-8 h-8 ${t.textMutedIcon} opacity-40 group-hover:scale-110 transition-transform`} />
                     )}
                   </div>
                   
                   <CardHeader className="p-3 pb-0 flex-1">
-                    <CardTitle className="text-xs font-bold text-white leading-snug line-clamp-2 min-h-[32px] group-hover:text-purple-300 transition-colors">{product.name}</CardTitle>
-                    <p className="text-[9px] font-mono text-zinc-500 mt-1 uppercase">Ref: {product.sku || '---'}</p>
-                    <CardDescription className="text-green-400 font-extrabold text-sm mt-2 flex items-baseline gap-1">
+                    <CardTitle className={`text-xs font-bold ${t.text} leading-snug line-clamp-2 min-h-[32px] group-hover:${t.accent} transition-colors`}>{product.name}</CardTitle>
+                    <p className={`text-[9px] font-mono ${t.textMuted} mt-1 uppercase`}>Ref: {product.sku || '---'}</p>
+                    <CardDescription className="text-emerald-500 dark:text-emerald-400 font-extrabold text-sm mt-2 flex items-baseline gap-1">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
                     </CardDescription>
                   </CardHeader>
@@ -300,7 +357,7 @@ export default function Storefront() {
 
       {/* Floating Sticky Bar */}
       {cart.length > 0 && !checkoutMode && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-[#07070b]/80 backdrop-blur-xl border-t border-white/5 z-30 transition-transform">
+        <div className={`fixed bottom-0 left-0 right-0 p-4 ${t.bg.split(' ')[0]}/90 backdrop-blur-xl border-t ${t.divider} z-30 transition-transform`}>
           <div className="container mx-auto">
             <Button 
               className="w-full h-14 text-base font-extrabold shadow-2xl shadow-purple-600/20 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-2xl border-0 flex items-center justify-between px-6 transition-all" 
@@ -315,13 +372,13 @@ export default function Storefront() {
 
       {/* Checkout overlay */}
       {checkoutMode && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-lg bg-[#0e0e15] border-white/5 sm:border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative">
-            <div className="p-5 border-b border-white/5 flex justify-between items-center bg-slate-950/20">
-              <h3 className="font-extrabold text-white text-base flex items-center gap-2">
-                <ShoppingCart className="w-5 h-5 text-purple-400" /> Sua Sacola
+        <div className={`fixed inset-0 ${t.overlay} z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200`}>
+          <div className={`w-full max-w-lg ${t.modal} sm:border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] relative`}>
+            <div className={`p-5 border-b ${t.divider} flex justify-between items-center ${t.card}`}>
+              <h3 className={`font-extrabold ${t.text} text-base flex items-center gap-2`}>
+                <ShoppingCart className={`w-5 h-5 ${t.accent}`} /> Sua Sacola
               </h3>
-              <Button variant="ghost" size="sm" onClick={() => setCheckoutMode(false)} className="text-zinc-400 hover:text-white rounded-lg">Fechar</Button>
+              <Button variant="ghost" size="sm" onClick={() => setCheckoutMode(false)} className={`${t.textMuted} hover:${t.text} rounded-lg`}>Fechar</Button>
             </div>
             
             {success ? (
@@ -344,56 +401,56 @@ export default function Storefront() {
               <>
                 <div className="flex-1 overflow-y-auto p-5 space-y-4">
                   {cart.map(item => (
-                    <div key={item.id} className="flex justify-between items-center border-b border-white/5 pb-3">
+                    <div key={item.id} className={`flex justify-between items-center border-b ${t.divider} pb-3`}>
                       <div className="flex items-center gap-3 flex-1">
                         {item.image_url ? (
-                          <img src={item.image_url} className="w-12 h-12 rounded-xl object-cover flex-shrink-0 bg-zinc-950 border border-white/5" />
+                          <img src={item.image_url} className={`w-12 h-12 rounded-xl object-cover flex-shrink-0 ${t.imageBg} border`} />
                         ) : (
-                          <div className="w-12 h-12 rounded-xl bg-zinc-950 flex items-center justify-center flex-shrink-0 border border-white/5">
-                            <ShoppingBag className="w-5 h-5 text-zinc-600 opacity-40" />
+                          <div className={`w-12 h-12 rounded-xl ${t.imageBg} flex items-center justify-center flex-shrink-0 border`}>
+                            <ShoppingBag className={`w-5 h-5 ${t.textMutedIcon} opacity-40`} />
                           </div>
                         )}
                         <div>
-                          <p className="font-semibold text-white line-clamp-1 text-sm">{item.name}</p>
-                          <p className="text-xs text-purple-400 font-bold mt-0.5">
+                          <p className={`font-semibold ${t.text} line-clamp-1 text-sm`}>{item.name}</p>
+                          <p className={`text-xs ${t.accent} font-bold mt-0.5`}>
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price)} x {item.cartQuantity}
                           </p>
                         </div>
                       </div>
-                      <div className="font-extrabold text-white text-sm ml-2">
+                      <div className={`font-extrabold ${t.text} text-sm ml-2`}>
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.cartQuantity)}
                       </div>
                     </div>
                   ))}
                   
                   <div className="pt-4 mt-4">
-                    <div className="flex justify-between font-extrabold text-lg text-white">
+                    <div className={`flex justify-between font-extrabold text-lg ${t.text}`}>
                       <span>Total do Pedido:</span>
-                      <span className="text-green-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalAmount)}</span>
+                      <span className="text-emerald-500 dark:text-emerald-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalAmount)}</span>
                     </div>
                   </div>
                   
-                  <hr className="border-white/5 my-4" />
+                  <hr className={`border-t ${t.divider} my-4`} />
 
                   <div className="pt-2 space-y-4">
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block flex items-center gap-1.5">
-                        <User className="w-3.5 h-3.5 text-purple-400" /> Seu Nome Completo
+                      <label className={`text-xs font-bold uppercase tracking-wider ${t.textMuted} mb-1.5 block flex items-center gap-1.5`}>
+                        <User className={`w-3.5 h-3.5 ${t.accent}`} /> Seu Nome Completo
                       </label>
                       <Input 
                         placeholder="Ex: João Silva" 
-                        className="h-12 bg-slate-900 border-white/5 text-white placeholder:text-zinc-600 rounded-xl"
+                        className={`h-12 rounded-xl ${t.input}`}
                         value={customerName}
                         onChange={(e) => setCustomerName(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block flex items-center gap-1.5">
-                        <Smartphone className="w-3.5 h-3.5 text-purple-400" /> Seu WhatsApp com DDD
+                      <label className={`text-xs font-bold uppercase tracking-wider ${t.textMuted} mb-1.5 block flex items-center gap-1.5`}>
+                        <Smartphone className={`w-3.5 h-3.5 ${t.accent}`} /> Seu WhatsApp com DDD
                       </label>
                       <Input 
                         placeholder="Ex: 11999999999" 
-                        className="h-12 bg-slate-900 border-white/5 text-white placeholder:text-zinc-600 rounded-xl"
+                        className={`h-12 rounded-xl ${t.input}`}
                         value={customerPhone}
                         onChange={(e) => setCustomerPhone(e.target.value)}
                       />
@@ -401,9 +458,9 @@ export default function Storefront() {
                   </div>
                 </div>
                 
-                <div className="p-5 border-t border-white/5 bg-[#0e0e15]">
+                <div className={`p-5 border-t ${t.divider} ${t.modal}`}>
                   <Button 
-                    className="w-full h-14 text-base font-extrabold shadow-xl shadow-green-500/10 bg-green-600 hover:bg-green-500 text-white rounded-2xl flex items-center justify-center gap-2 border-0"
+                    className="w-full h-14 text-base font-extrabold shadow-xl shadow-green-500/20 bg-green-600 hover:bg-green-500 text-white rounded-2xl flex items-center justify-center gap-2 border-0"
                     disabled={!customerName.trim() || !customerPhone.trim() || loading}
                     onClick={handleSendOrder}
                   >
