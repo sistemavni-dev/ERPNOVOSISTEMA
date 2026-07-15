@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock, User, Megaphone } from "lucide-react"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock, User, Megaphone, Headset } from "lucide-react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 
 const COLORS = ['#a855f7', '#6366f1', '#06b6d4', '#3b82f6', '#14b8a6', '#64748b']
@@ -315,7 +315,10 @@ export default function TenantDashboard() {
             </Button>
           )}
         </nav>
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 border-t border-white/5 space-y-2">
+          <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10" onClick={() => window.open('https://wa.me/5511999999999?text=Olá, preciso de suporte no sistema!', '_blank')}>
+            <Headset className="w-4 h-4" /> Falar com Suporte
+          </Button>
           <Button variant="ghost" className="w-full justify-start gap-2 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10" onClick={handleLogout}>
             <LogOut className="w-4 h-4" /> Sair da Conta
           </Button>
