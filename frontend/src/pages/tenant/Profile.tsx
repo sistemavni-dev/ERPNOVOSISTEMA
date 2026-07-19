@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { User, ArrowLeft, Save, Mail } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Profile() {
   const [loading, setLoading] = useState(false)
@@ -42,7 +43,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground">
       <div className="mb-8 flex justify-between items-center max-w-2xl mx-auto">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
@@ -55,10 +56,11 @@ export default function Profile() {
             <p className="text-muted-foreground mt-1">Gerencie seus dados pessoais.</p>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       <div className="max-w-2xl mx-auto">
-        <Card className="border-border bg-slate-950/50 backdrop-blur-xl">
+        <Card className="bg-card border-border shadow-md">
           <CardHeader>
             <CardTitle>Informações Pessoais</CardTitle>
             <CardDescription>Estes dados identificam você no sistema.</CardDescription>
@@ -93,7 +95,7 @@ export default function Profile() {
                 <p className="text-[10px] text-zinc-500">O e-mail é utilizado para acesso e não pode ser alterado por aqui.</p>
               </div>
 
-              <div className="pt-4 border-t border-white/5">
+              <div className="pt-4 border-t border-border">
                 <Button type="submit" className="w-full h-12 text-md" disabled={loading}>
                   <Save className="w-5 h-5 mr-2" /> 
                   {loading ? "Salvando..." : "Salvar Alterações"}

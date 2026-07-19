@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "../../components/ui/card"
 import { CheckCircle, XCircle, LogOut, Users, Database, Mail, Lock } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 interface Tenant {
   id: string
@@ -113,9 +114,17 @@ export default function SuperAdminDashboard() {
   }
 
   const updateTenantStatus = async (id: string, status: string) => {
+    const updateData: any = { status }
+    
+    // Se estiver liberando acesso, força o status da assinatura como ativo
+    // para evitar que o bloqueio de 7 dias continue segurando o lojista
+    if (status === 'active') {
+      updateData.subscription_status = 'active'
+    }
+
     const { error } = await supabase
       .from('tenants')
-      .update({ status })
+      .update(updateData)
       .eq('id', id)
     
     if (error) {
@@ -140,7 +149,10 @@ export default function SuperAdminDashboard() {
 
   if (needsAuth) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 relative overflow-hidden dark text-foreground">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden text-foreground">
+        <div className="absolute top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
         {/* Orbes Neon */}
         <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse" />
         <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[150px] animate-pulse" />
@@ -205,7 +217,10 @@ export default function SuperAdminDashboard() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#020617] flex items-center justify-center p-4 relative overflow-hidden dark text-foreground">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 relative overflow-hidden text-foreground">
+        <div className="absolute top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
         {/* Orbes Neon */}
         <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse" />
         <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[150px] animate-pulse" />
@@ -242,7 +257,7 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] flex dark text-foreground relative overflow-hidden">
+    <div className="min-h-screen bg-background flex text-foreground relative overflow-hidden">
       {/* Background orbs */}
       <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
       <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
@@ -274,7 +289,10 @@ export default function SuperAdminDashboard() {
             <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">Empresas Parceiras</h1>
             <p className="text-zinc-400 mt-1 text-sm">Gerencie o nível de assinatura e libere o acesso das empresas ao ERP.</p>
           </div>
-          <Button onClick={fetchTenants} className="bg-glass hover:bg-white/5 border-white/10 text-white transition-all">Atualizar Lista</Button>
+          <div className="flex items-center gap-4">
+            <Button onClick={fetchTenants} className="bg-glass hover:bg-white/5 border-white/10 text-white transition-all">Atualizar Lista</Button>
+            <ThemeToggle />
+          </div>
         </div>
 
         <Card className="bg-glass border border-white/5 shadow-2xl">

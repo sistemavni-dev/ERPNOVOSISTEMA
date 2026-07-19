@@ -4,7 +4,8 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "../../components/ui/card"
 import { Input } from "../../components/ui/input"
-import { CheckCircle, AlertCircle, LogOut, Package, DollarSign, Store, Clipboard, ExternalLink, Trash2, Crown, Users, Lock } from "lucide-react"
+import { CheckCircle, AlertCircle, LogOut, Clipboard, ExternalLink, Trash2, Crown, Lock, Building2 } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Plans() {
   const [loading, setLoading] = useState(true)
@@ -60,9 +61,9 @@ export default function Plans() {
           .insert([{
             id: user.id,
             name: user.user_metadata?.full_name || "Minha Empresa",
-            plan: 'prata',
-            status: 'active',
-            trial_ends_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            plan: 'ouro',
+            status: 'trial',
+            trial_start_at: new Date().toISOString(),
             subscription_status: 'trialing'
           }])
           .select()
@@ -87,9 +88,10 @@ export default function Plans() {
         setBillingEmail(user.email || "")
         setBillingPhone(data.whatsapp_number || "")
 
-        const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at) : null
+        const trialStart = data.trial_start_at ? new Date(data.trial_start_at) : null
+        const trialEnds = trialStart ? new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000) : null
         const expired = trialEnds ? trialEnds < new Date() : false
-        setTrialExpired(expired)
+        setTrialExpired(expired || data.status === 'suspended')
 
         // Permite visualizar a página de planos mesmo se estiver ativo
         // if (data.subscription_status === 'active' && !expired) {
@@ -225,7 +227,7 @@ export default function Plans() {
   const isBlocked = searchParams.get('blocked') === 'true' || trialExpired;
 
   return (
-    <div className="min-h-screen bg-[#020617] p-4 md:p-8 dark text-foreground relative overflow-hidden flex flex-col justify-center">
+    <div className="min-h-screen bg-background p-4 md:p-8 text-foreground relative overflow-hidden flex flex-col justify-center">
       {/* Background Orbs */}
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/10 rounded-full blur-[150px] animate-pulse pointer-events-none" />
       <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[150px] animate-pulse pointer-events-none" />
@@ -259,24 +261,25 @@ export default function Plans() {
           </div>
         )}
 
-        <div className="flex justify-between items-center mb-12 border-b border-white/5 pb-6">
+        <div className="flex justify-between items-center mb-12 border-b border-border pb-6">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent">Escolha seu Plano</h1>
-            <p className="text-zinc-400 mt-2 text-sm">
-              {tenant?.subscription_status === 'trialing' 
-                ? `Você está no período de avaliação de 7 dias (termina em: ${new Date(tenant.trial_ends_at).toLocaleDateString('pt-BR')})` 
+            <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-2">Escolha seu Plano</h1>
+            <p className="text-muted-foreground mt-2 text-sm">
+              {tenant?.subscription_status === 'trialing' && tenant?.trial_start_at
+                ? `Você está no período de avaliação de 7 dias (termina em: ${new Date(new Date(tenant.trial_start_at).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')})` 
                 : 'Selecione uma assinatura para liberar seus acessos de forma ilimitada.'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {!isBlocked && (
-              <Button variant="outline" className="border-white/10 text-zinc-300 hover:bg-white/5" onClick={() => navigate('/dashboard')}>
+              <Button variant="outline" className="border-border text-foreground hover:bg-muted" onClick={() => navigate('/dashboard')}>
                 Voltar ao Painel
               </Button>
             )}
-            <Button variant="ghost" className="text-zinc-400 hover:text-white hover:bg-white/5" onClick={handleLogout}>
+            <Button variant="ghost" className="text-muted-foreground hover:text-foreground hover:bg-muted" onClick={handleLogout}>
               <LogOut className="w-4 h-4 mr-2" /> Sair
             </Button>
+            <ThemeToggle />
           </div>
         </div>
 
@@ -296,22 +299,22 @@ export default function Plans() {
                 </span></p>
               </div>
             </div>
-            {tenant.subscription_status === 'trialing' && (
-              <span className="text-xs text-zinc-400 font-mono">Expira em: {new Date(tenant.trial_ends_at).toLocaleDateString('pt-BR')}</span>
+            {tenant.subscription_status === 'trialing' && tenant.trial_start_at && (
+              <span className="text-xs text-zinc-400 font-mono">Expira em: {new Date(new Date(tenant.trial_start_at).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR')}</span>
             )}
           </div>
         )}
 
         {/* Formulário / Modal de Checkout Asaas */}
         {checkoutPlan && (
-          <Card className="mb-12 bg-slate-950/80 backdrop-blur-xl border border-purple-500/30 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
+          <Card className="mb-12 bg-card border-purple-500/30 shadow-2xl relative overflow-hidden max-w-2xl mx-auto">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 to-indigo-500" />
             <CardHeader>
               <div className="flex justify-between items-center">
-                <CardTitle className="text-xl font-bold text-white">Assinar Plano {checkoutPlan.toUpperCase()}</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => setCheckoutPlan(null)} className="text-zinc-400 hover:text-white">Fechar</Button>
+                <CardTitle className="text-xl font-bold text-card-foreground">Assinar Plano {checkoutPlan.toUpperCase()}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => setCheckoutPlan(null)} className="text-muted-foreground hover:text-foreground">Fechar</Button>
               </div>
-              <CardDescription>Insira as informações para a geração do seu pagamento recorrente via Asaas.</CardDescription>
+              <CardDescription className="text-muted-foreground">Insira as informações para a geração do seu pagamento recorrente via Asaas.</CardDescription>
             </CardHeader>
             <CardContent>
               {checkoutError && (
@@ -328,17 +331,17 @@ export default function Plans() {
                         value={billingName} 
                         onChange={e => setBillingName(e.target.value)} 
                         required 
-                        className="bg-slate-900 border-white/5 text-white"
+                        className="bg-background border-border text-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-mono text-zinc-400 uppercase">CPF / CNPJ da Empresa</label>
+                      <label className="text-xs font-mono text-muted-foreground uppercase">CPF / CNPJ da Empresa</label>
                       <Input 
                         value={billingDoc} 
                         onChange={e => setBillingDoc(e.target.value)} 
                         required 
                         placeholder="Apenas números"
-                        className="bg-slate-900 border-white/5 text-white"
+                        className="bg-background border-border text-foreground"
                       />
                     </div>
                   </div>
@@ -350,24 +353,24 @@ export default function Plans() {
                         value={billingEmail} 
                         onChange={e => setBillingEmail(e.target.value)} 
                         required 
-                        className="bg-slate-900 border-white/5 text-white"
+                        className="bg-background border-border text-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-xs font-mono text-zinc-400 uppercase">WhatsApp para Notificações</label>
+                      <label className="text-xs font-mono text-muted-foreground uppercase">WhatsApp para Notificações</label>
                       <Input 
                         value={billingPhone} 
                         onChange={e => setBillingPhone(e.target.value)} 
                         placeholder="Ex: 5511999999999"
-                        className="bg-slate-900 border-white/5 text-white"
+                        className="bg-background border-border text-foreground"
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-mono text-zinc-400 uppercase">Forma de Pagamento</label>
+                    <label className="text-xs font-mono text-muted-foreground uppercase">Forma de Pagamento</label>
                     <select
-                      className="flex h-11 w-full rounded-md border border-white/5 bg-slate-900 px-3 py-2 text-sm text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
+                      className="flex h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 cursor-pointer"
                       value={billingMethod}
                       onChange={(e) => setBillingMethod(e.target.value)}
                     >
@@ -400,10 +403,10 @@ export default function Plans() {
 
                       {pixData.pixCode && (
                         <div className="space-y-2">
-                          <label className="text-xs font-mono text-zinc-400 uppercase">PIX Copia e Cola</label>
+                          <label className="text-xs font-mono text-muted-foreground uppercase">PIX Copia e Cola</label>
                           <div className="flex gap-2 max-w-md mx-auto">
-                            <Input value={pixData.pixCode} readOnly className="bg-slate-900 border-white/5 text-white font-mono text-xs" />
-                            <Button size="icon" variant="outline" className="border-white/10 hover:bg-white/5 shrink-0" onClick={() => copyToClipboard(pixData.pixCode)}>
+                            <Input value={pixData.pixCode} readOnly className="bg-background border-border text-foreground font-mono text-xs" />
+                            <Button size="icon" variant="outline" className="border-border hover:bg-muted shrink-0" onClick={() => copyToClipboard(pixData.pixCode)}>
                               <Clipboard className="w-4 h-4" />
                             </Button>
                           </div>
@@ -455,25 +458,23 @@ export default function Plans() {
           </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-stretch max-w-[1400px] mx-auto px-4">
           
           {/* Plano Bronze */}
-          <Card className="bg-slate-950/50 backdrop-blur-xl border border-white/5 hover:border-zinc-500/30 transition-all flex flex-col justify-between hover:shadow-2xl">
+          <Card className="bg-card border-border hover:border-zinc-500/30 shadow-md hover:shadow-2xl transition-all flex flex-col justify-between">
             <CardHeader className="pt-8">
               <CardTitle className="text-2xl font-bold text-amber-600">Plano Bronze</CardTitle>
-              <CardDescription className="text-zinc-500">Ideal para começar e focar nas vendas.</CardDescription>
+              <CardDescription className="text-muted-foreground">Ideal para começar e focar nas vendas.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-white">R$ 49,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-foreground">R$ 49,90</span><span className="text-muted-foreground text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4 flex-1">
-              <ul className="space-y-3 text-sm text-zinc-300">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <Store className="w-4 h-4 text-amber-500"/> Vitrine Virtual Ilimitada</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <Package className="w-4 h-4 text-amber-500"/> Gestão de Produtos e Estoque</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> <DollarSign className="w-4 h-4 text-amber-500"/> PDV (Frente de Caixa)</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Gestão de Clientes e CRM</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Gestão Financeira Completa</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Orçamentos e Fornecedores</li>
+              <ul className="space-y-3 text-sm text-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-amber-500" /> Gestão de Produtos/Estoque, PDV e CRM</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Trava Fiscal: 0 NF-e/mês (Bloqueado)</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Trava de Mensageria: Bloqueado (Sem Whats/Telegram)</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Vitrine Virtual: Bloqueado</li>
               </ul>
             </CardContent>
             <CardFooter className="pb-8 pt-4">
@@ -488,22 +489,21 @@ export default function Plans() {
           </Card>
 
           {/* Plano Prata */}
-          <Card className="bg-slate-950/50 backdrop-blur-xl border border-white/5 hover:border-zinc-500/30 transition-all flex flex-col justify-between hover:shadow-2xl">
+          <Card className="bg-card border-border hover:border-zinc-500/30 shadow-md hover:shadow-2xl transition-all flex flex-col justify-between">
             <CardHeader className="pt-8">
-              <CardTitle className="text-2xl font-bold text-zinc-400">Plano Prata</CardTitle>
-              <CardDescription className="text-zinc-500">Gestão completa e PDV para o seu comércio.</CardDescription>
+              <CardTitle className="text-2xl font-bold text-zinc-600 dark:text-zinc-400">Plano Prata</CardTitle>
+              <CardDescription className="text-muted-foreground">Gestão completa e PDV para o seu comércio.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-white">R$ 109,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-foreground">R$ 109,90</span><span className="text-muted-foreground text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-4 flex-1">
-              <ul className="space-y-3 text-sm text-zinc-300">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Tudo do Plano Bronze</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <Users className="w-4 h-4 text-zinc-500"/> Gestão de Clientes e CRM</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> <DollarSign className="w-4 h-4 text-zinc-500"/> Controle Financeiro</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Orçamentos e Fornecedores</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Clube de Membros VIP</li>
-                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Automação com WhatsApp e IA</li>
+              <ul className="space-y-3 text-sm text-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Tudo do Bronze + Finanças, Orçamentos e Fornecedores</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Trava Fiscal: Até 100 NF-e/mês</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> WhatsApp Liberado (Apenas Comprovantes PDV)</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Vitrine Virtual: Bloqueado</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Agente de IA (Telegram): Bloqueado</li>
               </ul>
             </CardContent>
             <CardFooter className="pb-8 pt-4">
@@ -518,36 +518,62 @@ export default function Plans() {
           </Card>
 
           {/* Plano Ouro */}
-          <Card className="bg-slate-950/50 backdrop-blur-xl border border-purple-500/20 hover:border-purple-400/40 transition-all scale-100 md:scale-105 z-10 flex flex-col justify-between">
+          <Card className="bg-card border-purple-500/20 shadow-xl hover:border-purple-400/40 transition-all scale-100 lg:scale-105 z-10 flex flex-col justify-between">
             <CardHeader className="bg-purple-900/10 rounded-t-lg pt-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 bg-gradient-to-l from-purple-600 to-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider py-1 px-3 rounded-bl-lg">Recomendado</div>
-              <CardTitle className="text-2xl font-bold text-purple-400 flex items-center gap-2">
-                <Crown className="w-5 h-5 text-purple-400" /> Plano Ouro 
-                <span className="ml-2 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full uppercase tracking-widest whitespace-nowrap">Em Breve!</span>
+              <CardTitle className="text-2xl font-bold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                <Crown className="w-5 h-5 text-purple-500" /> Plano Ouro 
               </CardTitle>
-              <CardDescription className="text-zinc-500">Automação de WhatsApp, IA e Clube VIP.</CardDescription>
+              <CardDescription className="text-muted-foreground">Automação de Telegram, IA e Clube VIP.</CardDescription>
               <div className="mt-6">
-                <span className="text-5xl font-black text-purple-400">R$ 199,90</span><span className="text-zinc-500 text-sm">/mês</span>
+                <span className="text-5xl font-black text-purple-600 dark:text-purple-400">R$ 199,90</span><span className="text-muted-foreground text-sm">/mês</span>
               </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-6 flex-1">
-              <ul className="space-y-3 text-sm text-zinc-300">
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> <Store className="w-4 h-4 text-purple-500"/> Tudo do Plano Prata</li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Ativar Agente de WhatsApp Autônomo</span></div></li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Vender Produtos:</span> Consultar preços e sugerir itens do estoque.</div></li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Enviar Comprovantes:</span> Informar detalhes das compras do caixa.</div></li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Receber Reservas da Vitrine:</span> Confirmar pedidos feitos online.</div></li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">Direcionamento do Agente</span> (Prompt de Instruções)</div></li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Clube de Membros VIP com Cashback</li>
-                <li className="flex items-center gap-2 font-bold text-purple-400 bg-purple-950/20 p-2.5 rounded-md border border-purple-500/10"><CheckCircle className="w-4 h-4 text-purple-400" /> Suporte Prioritário 24/7</li>
+              <ul className="space-y-3 text-sm text-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Tudo do Prata + Vitrine Virtual Ilimitada</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Trava Fiscal: Até 300 NF-e/mês</li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">WhatsApp Liberado + Agente de IA do Telegram Ativo</span> (Diretrizes e Módulos de Atuação)</div></li>
+                <li className="flex items-center gap-2 font-bold text-purple-400 bg-purple-950/20 p-2.5 rounded-md border border-purple-500/10 mt-2"><CheckCircle className="w-4 h-4 text-purple-400" /> Suporte Prioritário 24/7</li>
               </ul>
             </CardContent>
             <CardFooter className="pb-8 pt-4">
               <Button 
-                disabled
-                className="w-full h-11 bg-slate-800 text-zinc-400 font-bold border-0 cursor-not-allowed opacity-80"
+                variant="outline"
+                className="w-full text-zinc-300 border-zinc-700 hover:bg-zinc-700/30 hover:border-zinc-600 transition-all h-11"
+                onClick={() => handleSubscribe('ouro')}
               >
-                Em Breve
+                Assinar Plano Ouro
+              </Button>
+            </CardFooter>
+          </Card>
+
+          {/* Plano Enterprise */}
+          <Card className="bg-card border-border hover:border-zinc-500/30 shadow-md hover:shadow-2xl transition-all flex flex-col justify-between">
+            <CardHeader className="pt-8">
+              <CardTitle className="text-2xl font-bold text-emerald-500 flex items-center gap-2">
+                <Building2 className="w-5 h-5 text-emerald-500" /> Enterprise
+              </CardTitle>
+              <CardDescription className="text-muted-foreground">Para operações de alto volume.</CardDescription>
+              <div className="mt-6 flex items-center h-[48px]">
+                <span className="text-3xl font-black text-foreground">Sob Consulta</span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-6 flex-1">
+              <ul className="space-y-3 text-sm text-foreground">
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Tudo do Plano Ouro</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Trava Fiscal: Até 2.000 NF-e/mês</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Suporte Prioritário (WhatsApp)</li>
+                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-emerald-500" /> Gerente de Conta Dedicado</li>
+              </ul>
+            </CardContent>
+            <CardFooter className="pb-8 pt-4">
+              <Button 
+                variant="outline" 
+                className="w-full text-zinc-300 border-zinc-700 hover:bg-zinc-700/30 hover:border-zinc-600 transition-all h-11"
+                onClick={() => window.open('https://wa.me/5511999999999?text=Olá,%20tenho%20interesse%20no%20Plano%20Enterprise', '_blank')}
+              >
+                Falar com um Consultor
               </Button>
             </CardFooter>
           </Card>

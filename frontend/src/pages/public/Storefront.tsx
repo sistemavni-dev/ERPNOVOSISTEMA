@@ -24,6 +24,8 @@ interface Tenant {
   store_description: string
   whatsapp_number: string
   theme_color?: string
+  plan?: string
+  status?: string
 }
 
 export default function Storefront() {
@@ -37,6 +39,7 @@ export default function Storefront() {
   const [customerName, setCustomerName] = useState("")
   const [customerPhone, setCustomerPhone] = useState("")
   const [success, setSuccess] = useState(false)
+  const [forbidden, setForbidden] = useState(false)
 
   const loadStore = useCallback(async () => {
     setLoading(true)
@@ -44,13 +47,21 @@ export default function Storefront() {
     // Busca a loja pelo slug público
     const { data: tenantData, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, name, store_description, whatsapp_number, theme_color')
+      .select('id, name, store_description, whatsapp_number, theme_color, plan, status')
       .eq('store_slug', slug)
       .single()
 
     if (tenantError || !tenantData) {
       setLoading(false)
       return
+    }
+
+    if (tenantData.plan === 'bronze' || tenantData.plan === 'prata') {
+      if (tenantData.status !== 'trial') {
+        setForbidden(true)
+        setLoading(false)
+        return
+      }
     }
 
     setTenant(tenantData)
@@ -174,6 +185,19 @@ export default function Storefront() {
         <Store className="w-16 h-16 text-zinc-500 mb-4 opacity-50" />
         <h1 className="text-2xl font-bold mb-2">Vitrine não encontrada</h1>
         <p className="text-zinc-400 max-w-sm">O endereço que você acessou pode estar desativado ou não existir.</p>
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#020617] text-white p-4 text-center relative overflow-hidden">
+        <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-rose-600/10 rounded-full blur-[180px]" />
+        <Store className="w-16 h-16 text-rose-500 mb-4 opacity-50" />
+        <h1 className="text-2xl font-bold mb-2 text-rose-500">Loja Indisponível</h1>
+        <p className="text-zinc-400 max-w-sm">
+          Erro 403: O lojista responsável por esta vitrine virtual está com o plano de assinatura incompatível ou suspenso no momento.
+        </p>
       </div>
     )
   }

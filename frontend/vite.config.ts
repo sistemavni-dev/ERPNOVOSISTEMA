@@ -12,8 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
-        name: 'Sistema ERP',
-        short_name: 'NexERP',
+        name: 'VniERP Vender+',
+        short_name: 'Vender+',
         description: 'Gestão Completa e Ponto de Venda',
         theme_color: '#020617',
         background_color: '#020617',

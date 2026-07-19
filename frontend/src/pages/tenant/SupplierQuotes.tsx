@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { FileText, Plus, Trash2, ArrowLeft, Eye, X, Calculator } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 interface QuoteItemInput {
   productId: string
@@ -274,40 +275,43 @@ export default function SupplierQuotes() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-[#020617] min-h-screen dark text-foreground relative overflow-hidden">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Background Orbs */}
       <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
       <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
 
       <div className="mb-8 flex justify-between items-center z-10 relative">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-white/5 text-white">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="hover:bg-muted text-foreground">
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-zinc-200 to-zinc-400 bg-clip-text text-transparent flex items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight flex items-center gap-2">
               <FileText className="w-6 h-6 md:w-8 md:h-8 text-purple-400" /> Orçamentos de Fornecedores
             </h1>
-            <p className="text-zinc-400 mt-1">Crie cotações comparativas e simule o impacto tributário por enquadramento.</p>
+            <p className="text-muted-foreground mt-1">Crie cotações comparativas e simule o impacto tributário por enquadramento.</p>
           </div>
         </div>
 
-        {!isCreating && (
-          <Button onClick={() => setIsCreating(true)} className="bg-purple-600 hover:bg-purple-500 text-white font-semibold">
-            <Plus className="w-4 h-4 mr-2" /> Novo Orçamento
-          </Button>
-        )}
+        <div className="flex items-center gap-4">
+          {!isCreating && (
+            <Button onClick={() => setIsCreating(true)} className="bg-purple-600 hover:bg-purple-500 text-white font-semibold">
+              <Plus className="w-4 h-4 mr-2" /> Novo Orçamento
+            </Button>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
 
       {isCreating ? (
         // Criar Novo Orçamento
-        <Card className="bg-slate-950/40 border-white/5 backdrop-blur-xl z-10 relative">
+        <Card className="bg-card border-border shadow-md z-10 relative">
           <CardHeader className="flex flex-row justify-between items-center">
             <div>
-              <CardTitle className="text-white">Criar Novo Orçamento</CardTitle>
-              <CardDescription className="text-zinc-500">Adicione os itens e calcule automaticamente os impostos com base no fornecedor.</CardDescription>
+              <CardTitle className="text-card-foreground">Criar Novo Orçamento</CardTitle>
+              <CardDescription className="text-muted-foreground">Adicione os itens e calcule automaticamente os impostos com base no fornecedor.</CardDescription>
             </div>
-            <Button variant="ghost" size="icon" onClick={() => { setIsCreating(false); setItems([]); }} className="text-zinc-400 hover:text-white">
+            <Button variant="ghost" size="icon" onClick={() => { setIsCreating(false); setItems([]); }} className="text-muted-foreground hover:text-foreground hover:bg-muted">
               <X className="w-5 h-5" />
             </Button>
           </CardHeader>
@@ -316,12 +320,12 @@ export default function SupplierQuotes() {
               {/* Seleção do Fornecedor */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-zinc-300">Fornecedor</label>
+                  <label className="text-sm font-medium text-foreground">Fornecedor</label>
                   <select 
                     value={supplierId} 
                     onChange={e => handleSupplierChange(e.target.value)} 
                     required
-                    className="w-full h-10 rounded-md border border-white/5 bg-slate-900 px-3 py-2 text-sm text-white focus:outline-none"
+                    className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none"
                   >
                     <option value="">Selecione um fornecedor...</option>
                     {suppliers.map(s => (
@@ -331,10 +335,10 @@ export default function SupplierQuotes() {
                 </div>
                 
                 {selectedSupplier && (
-                  <div className="p-3 bg-purple-500/5 rounded-lg border border-purple-500/10 flex flex-col justify-center col-span-1">
-                    <div className="text-xs text-purple-400 font-mono uppercase font-bold">Fornecedor Selecionado</div>
-                    <div className="text-sm font-medium text-white">{selectedSupplier.name}</div>
-                    <div className="text-[10px] text-zinc-500">
+                  <div className="p-3 bg-muted/50 rounded-lg border border-border flex flex-col justify-center col-span-1">
+                    <div className="text-xs text-purple-500 font-mono uppercase font-bold">Fornecedor Selecionado</div>
+                    <div className="text-sm font-medium text-foreground">{selectedSupplier.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
                       Os impostos (Simples Nacional, Lucro Presumido, Lucro Real) serão calculados com base no enquadramento fiscal individual de cada produto.
                     </div>
                   </div>
@@ -344,33 +348,33 @@ export default function SupplierQuotes() {
               {/* Tabela de Itens */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
-                  <label className="text-sm font-medium text-zinc-300">Produtos da Cotação</label>
-                  <Button type="button" variant="outline" size="sm" onClick={addRow} className="border-white/5 text-zinc-300 hover:bg-white/5">
+                  <label className="text-sm font-medium text-foreground">Produtos da Cotação</label>
+                  <Button type="button" variant="outline" size="sm" onClick={addRow} className="border-border text-foreground hover:bg-muted">
                     <Plus className="w-4 h-4 mr-1" /> Adicionar Linha
                   </Button>
                 </div>
 
-                <div className="overflow-x-auto border border-white/5 rounded-lg">
-                  <table className="w-full text-sm text-left text-zinc-300">
-                    <thead className="bg-white/5 text-white border-b border-white/5">
+                <div className="overflow-x-auto border border-border rounded-lg">
+                  <table>
+                    <thead>
                       <tr>
-                        <th className="px-4 py-2 font-medium">Produto</th>
-                        <th className="px-4 py-2 font-medium w-24">Qtd.</th>
-                        <th className="px-4 py-2 font-medium w-36">Preço Unit. (R$)</th>
-                        <th className="px-4 py-2 font-medium w-28">Alíquota Imp. (%)</th>
-                        <th className="px-4 py-2 font-medium w-32">Vl. Imposto (R$)</th>
-                        <th className="px-4 py-2 font-medium w-32">Total com Imp.</th>
-                        <th className="px-4 py-2 text-right w-12"></th>
+                        <th>Produto</th>
+                        <th className="w-24">Qtd.</th>
+                        <th className="w-36">Preço Unit. (R$)</th>
+                        <th className="w-28">Alíquota Imp. (%)</th>
+                        <th className="w-32">Vl. Imposto (R$)</th>
+                        <th className="w-32">Total com Imp.</th>
+                        <th className="text-right w-12"></th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((item, index) => (
-                        <tr key={index} className="border-b border-white/5 last:border-0 hover:bg-white/5">
-                          <td className="p-2">
+                        <tr key={index}>
+                          <td>
                             <select 
                               value={item.productId} 
                               onChange={e => handleItemChange(index, "productId", e.target.value)}
-                              className="w-full h-9 rounded-md border border-white/5 bg-slate-900 px-2 py-1 text-xs text-white focus:outline-none"
+                              className="w-full h-9 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground focus:outline-none"
                             >
                               <option value="">Selecione...</option>
                               {products.map(p => (
@@ -378,39 +382,39 @@ export default function SupplierQuotes() {
                               ))}
                             </select>
                           </td>
-                          <td className="p-2">
+                          <td>
                             <Input 
                               type="number" 
                               value={item.quantity} 
                               onChange={e => handleItemChange(index, "quantity", e.target.value)}
-                              className="h-9 bg-slate-900 border-white/5 text-white text-xs"
+                              className="h-9 bg-background border-border text-foreground text-xs"
                             />
                           </td>
-                          <td className="p-2">
+                          <td>
                             <Input 
                               type="number" 
                               step="0.01"
                               value={item.unitPrice} 
                               onChange={e => handleItemChange(index, "unitPrice", e.target.value)}
-                              className="h-9 bg-slate-900 border-white/5 text-white text-xs"
+                              className="h-9 bg-background border-border text-foreground text-xs"
                             />
                           </td>
-                          <td className="p-2">
+                          <td>
                             <Input 
                               type="number" 
                               step="0.01"
                               value={item.taxRate} 
                               onChange={e => handleItemChange(index, "taxRate", e.target.value)}
-                              className="h-9 bg-slate-900 border-white/5 text-white text-xs"
+                              className="h-9 bg-background border-border text-foreground text-xs"
                             />
                           </td>
-                          <td className="p-2 font-mono text-xs text-zinc-400">
+                          <td className="font-mono text-xs text-muted-foreground">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.taxAmount)}
                           </td>
-                          <td className="p-2 font-mono text-xs font-bold text-white">
+                          <td className="font-mono text-xs font-bold text-foreground">
                             {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.totalPrice)}
                           </td>
-                          <td className="p-2 text-right">
+                          <td className="text-right">
                             <Button type="button" variant="ghost" size="icon" className="h-8 w-8 text-rose-400 hover:bg-rose-500/10" onClick={() => removeRow(index)}>
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -419,7 +423,7 @@ export default function SupplierQuotes() {
                       ))}
                       {items.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Nenhum produto adicionado. Clique em "Adicionar Linha" acima.</td>
+                          <td colSpan={7} className="text-center text-muted-foreground">Nenhum produto adicionado. Clique em "Adicionar Linha" acima.</td>
                         </tr>
                       )}
                     </tbody>
@@ -428,27 +432,27 @@ export default function SupplierQuotes() {
               </div>
 
               {/* Resumo Final */}
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-white/5 rounded-lg border border-white/5 gap-4">
-                <div className="flex items-center gap-2 text-xs text-zinc-400">
-                  <Calculator className="w-4 h-4 text-purple-400" />
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-4 bg-muted/50 rounded-lg border border-border gap-4">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calculator className="w-4 h-4 text-purple-500" />
                   <span>Cálculos baseados no enquadramento tributário do fornecedor selecionado.</span>
                 </div>
                 <div className="flex gap-8 text-right self-end md:self-auto">
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Subtotal (Sem Imposto)</div>
-                    <div className="text-lg font-bold text-zinc-300">
+                    <div className="text-[10px] text-muted-foreground uppercase">Subtotal (Sem Imposto)</div>
+                    <div className="text-lg font-bold text-foreground">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(subtotal)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Impostos Estimados</div>
-                    <div className="text-lg font-bold text-purple-400">
+                    <div className="text-[10px] text-muted-foreground uppercase">Impostos Estimados</div>
+                    <div className="text-lg font-bold text-purple-600 dark:text-purple-400">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(taxAmount)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-[10px] text-zinc-500 uppercase">Valor Total</div>
-                    <div className="text-xl font-black text-white">
+                    <div className="text-[10px] text-muted-foreground uppercase">Valor Total</div>
+                    <div className="text-xl font-black text-foreground">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalAmount)}
                     </div>
                   </div>
@@ -456,7 +460,7 @@ export default function SupplierQuotes() {
               </div>
 
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setItems([]); }} className="text-zinc-400 hover:text-white">
+                <Button type="button" variant="ghost" onClick={() => { setIsCreating(false); setItems([]); }} className="text-muted-foreground hover:text-foreground hover:bg-muted">
                   Cancelar
                 </Button>
                 <Button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white" disabled={loading || items.length === 0}>
@@ -469,56 +473,56 @@ export default function SupplierQuotes() {
       ) : (
         // Listagem de Orçamentos
         <div className="grid grid-cols-1 gap-8 z-10 relative">
-          <Card className="bg-slate-950/40 border-white/5 backdrop-blur-xl">
+          <Card className="bg-card border-border shadow-md z-10 relative">
             <CardHeader>
-              <CardTitle className="text-white">Orçamentos Cadastrados</CardTitle>
-              <CardDescription className="text-zinc-500">Histórico de cotações de compra emitidas para seus fornecedores.</CardDescription>
+              <CardTitle className="text-card-foreground">Orçamentos Cadastrados</CardTitle>
+              <CardDescription className="text-muted-foreground">Histórico de cotações de compra emitidas para seus fornecedores.</CardDescription>
             </CardHeader>
             <CardContent className="p-0 overflow-x-auto">
               <div className="min-w-[800px] border-0">
-                <table className="w-full text-sm text-left text-zinc-300">
-                  <thead className="bg-white/5 border-b border-white/5 text-white">
+                <table>
+                  <thead>
                     <tr>
-                      <th className="px-4 py-3 font-medium">Data / Hora</th>
-                      <th className="px-4 py-3 font-medium">Fornecedor</th>
-                      <th className="px-4 py-3 font-medium">Subtotal</th>
-                      <th className="px-4 py-3 font-medium">Impostos</th>
-                      <th className="px-4 py-3 font-medium">Valor Total</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 text-right">Ações</th>
+                      <th>Data / Hora</th>
+                      <th>Fornecedor</th>
+                      <th>Subtotal</th>
+                      <th>Impostos</th>
+                      <th>Valor Total</th>
+                      <th>Status</th>
+                      <th className="text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {quotes.map((quote) => (
-                      <tr key={quote.id} className="border-b border-white/5 last:border-0 hover:bg-white/5">
-                        <td className="px-4 py-3 text-zinc-500">
+                      <tr key={quote.id}>
+                        <td className="text-muted-foreground">
                           {new Date(quote.created_at).toLocaleString('pt-BR')}
                         </td>
-                        <td className="px-4 py-3 font-medium text-white">
+                        <td className="font-medium text-foreground">
                           {quote.suppliers?.name || "Fornecedor Removido"}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs">
+                        <td className="font-mono text-xs">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.subtotal)}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-purple-400">
+                        <td className="font-mono text-xs text-purple-600 dark:text-purple-400">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.tax_amount)}
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs font-bold text-white">
+                        <td className="font-mono text-xs font-bold text-foreground">
                           {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(quote.total_amount)}
                         </td>
-                        <td className="px-4 py-3">
+                        <td>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
-                            quote.status === "approved" ? "bg-emerald-500/10 text-emerald-400" :
-                            quote.status === "pending" ? "bg-amber-500/10 text-amber-400" :
-                            quote.status === "rejected" ? "bg-rose-500/10 text-rose-400" : "bg-zinc-500/10 text-zinc-400"
+                            quote.status === "approved" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
+                            quote.status === "pending" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
+                            quote.status === "rejected" ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-muted text-muted-foreground"
                           }`}>
                             {quote.status === "approved" ? "Aprovado" :
                              quote.status === "pending" ? "Pendente" :
                              quote.status === "rejected" ? "Rejeitado" : "Rascunho"}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white hover:bg-white/5 mr-2" onClick={() => handleViewQuoteDetails(quote)}>
+                        <td className="text-right">
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted mr-2" onClick={() => handleViewQuoteDetails(quote)}>
                             <Eye className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="text-rose-400 hover:text-rose-300 hover:bg-rose-500/10" onClick={() => handleDeleteQuote(quote.id)}>
@@ -529,7 +533,7 @@ export default function SupplierQuotes() {
                     ))}
                     {quotes.length === 0 && !loading && (
                       <tr>
-                        <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Nenhum orçamento cadastrado ainda.</td>
+                        <td colSpan={7} className="text-center text-muted-foreground">Nenhum orçamento cadastrado ainda.</td>
                       </tr>
                     )}
                   </tbody>
@@ -542,54 +546,54 @@ export default function SupplierQuotes() {
 
       {/* Modal / Dialog de Detalhes do Orçamento */}
       {selectedQuote && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="bg-[#0b1329] border-white/10 max-w-3xl w-full">
-            <CardHeader className="flex flex-row justify-between items-center border-b border-white/5 pb-4">
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <Card className="bg-card border-border shadow-2xl max-w-3xl w-full">
+            <CardHeader className="flex flex-row justify-between items-center border-b border-border pb-4">
               <div>
-                <CardTitle className="text-white">Detalhes do Orçamento</CardTitle>
-                <CardDescription className="text-zinc-500">
+                <CardTitle className="text-card-foreground">Detalhes do Orçamento</CardTitle>
+                <CardDescription className="text-muted-foreground">
                   Emitido em {new Date(selectedQuote.created_at).toLocaleString('pt-BR')} para {selectedQuote.suppliers?.name}
                 </CardDescription>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedQuote(null)} className="text-zinc-400 hover:text-white">
+              <Button variant="ghost" size="icon" onClick={() => setSelectedQuote(null)} className="text-muted-foreground hover:text-foreground">
                 <X className="w-5 h-5" />
               </Button>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               {/* Info Fornecedor */}
-              <div className="p-3 bg-white/5 rounded-lg border border-white/5">
+              <div className="p-3 bg-muted/50 rounded-lg border border-border">
                 <div>
-                  <div className="text-[10px] text-zinc-500 uppercase">Fornecedor</div>
-                  <div className="text-sm font-medium text-white">{selectedQuote.suppliers?.name}</div>
+                  <div className="text-[10px] text-muted-foreground uppercase">Fornecedor</div>
+                  <div className="text-sm font-medium text-foreground">{selectedQuote.suppliers?.name}</div>
                 </div>
               </div>
 
               {/* Itens */}
               <div className="space-y-2">
-                <div className="text-sm font-semibold text-white">Produtos</div>
-                <div className="border border-white/5 rounded-lg overflow-hidden">
-                  <table className="w-full text-xs text-left text-zinc-300">
-                    <thead className="bg-white/5 text-white">
+                <div className="text-sm font-semibold text-foreground">Produtos</div>
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <table>
+                    <thead>
                       <tr>
-                        <th className="px-3 py-2 font-medium">Produto</th>
-                        <th className="px-3 py-2 font-medium">Regime</th>
-                        <th className="px-3 py-2 font-medium w-16 text-right">Qtd.</th>
-                        <th className="px-3 py-2 font-medium w-28 text-right">Preço Unit.</th>
-                        <th className="px-3 py-2 font-medium w-16 text-right">Imp. (%)</th>
-                        <th className="px-3 py-2 font-medium w-24 text-right">Vl. Imposto</th>
-                        <th className="px-3 py-2 font-medium w-28 text-right">Total c/ Imp.</th>
+                        <th>Produto</th>
+                        <th>Regime</th>
+                        <th className="w-16 text-right">Qtd.</th>
+                        <th className="w-28 text-right">Preço Unit.</th>
+                        <th className="w-16 text-right">Imp. (%)</th>
+                        <th className="w-24 text-right">Vl. Imposto</th>
+                        <th className="w-28 text-right">Total c/ Imp.</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedQuote.items.map((item: any) => (
-                        <tr key={item.id} className="border-b border-white/5 last:border-0">
-                          <td className="px-3 py-2 text-white font-medium">{item.products?.name || "Produto Excluído"}</td>
-                          <td className="px-3 py-2 text-zinc-400">{item.products?.tax_regime || "Simples Nacional"}</td>
-                          <td className="px-3 py-2 text-right">{item.quantity}</td>
-                          <td className="px-3 py-2 text-right">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unit_price)}</td>
-                          <td className="px-3 py-2 text-right">{item.tax_rate}%</td>
-                          <td className="px-3 py-2 text-right text-purple-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.tax_amount)}</td>
-                          <td className="px-3 py-2 text-right text-white font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.total_price)}</td>
+                        <tr key={item.id}>
+                          <td className="font-medium text-foreground">{item.products?.name || "Produto Excluído"}</td>
+                          <td className="text-muted-foreground">{item.products?.tax_regime || "Simples Nacional"}</td>
+                          <td className="text-right">{item.quantity}</td>
+                          <td className="text-right">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.unit_price)}</td>
+                          <td className="text-right">{item.tax_rate}%</td>
+                          <td className="text-right text-purple-600 dark:text-purple-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.tax_amount)}</td>
+                          <td className="text-right text-foreground font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.total_price)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -598,28 +602,28 @@ export default function SupplierQuotes() {
               </div>
 
               {/* Totais do Modal */}
-              <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg border border-white/5">
+              <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg border border-border">
                 <div className="flex gap-4">
-                  <Button size="sm" variant="outline" onClick={() => updateQuoteStatus('approved')} className={`h-8 border-white/5 hover:bg-emerald-500/10 hover:text-emerald-400 ${selectedQuote.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'text-zinc-400'}`}>
+                  <Button size="sm" variant="outline" onClick={() => updateQuoteStatus('approved')} className={`h-8 hover:bg-emerald-500/10 hover:text-emerald-600 dark:hover:text-emerald-400 ${selectedQuote.status === 'approved' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : 'border-border text-muted-foreground'}`}>
                     Aprovar
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => updateQuoteStatus('rejected')} className={`h-8 border-white/5 hover:bg-rose-500/10 hover:text-rose-400 ${selectedQuote.status === 'rejected' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'text-zinc-400'}`}>
+                  <Button size="sm" variant="outline" onClick={() => updateQuoteStatus('rejected')} className={`h-8 hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 ${selectedQuote.status === 'rejected' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' : 'border-border text-muted-foreground'}`}>
                     Rejeitar
                   </Button>
                 </div>
 
                 <div className="flex gap-6 text-right">
                   <div>
-                    <div className="text-[9px] text-zinc-500 uppercase">Subtotal</div>
-                    <div className="text-xs font-semibold text-zinc-300">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.subtotal)}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase">Subtotal</div>
+                    <div className="text-xs font-semibold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.subtotal)}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-zinc-500 uppercase">Impostos</div>
-                    <div className="text-xs font-semibold text-purple-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.tax_amount)}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase">Impostos</div>
+                    <div className="text-xs font-semibold text-purple-600 dark:text-purple-400">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.tax_amount)}</div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-zinc-500 uppercase">Total</div>
-                    <div className="text-sm font-bold text-white">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.total_amount)}</div>
+                    <div className="text-[9px] text-muted-foreground uppercase">Total</div>
+                    <div className="text-sm font-bold text-foreground">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(selectedQuote.total_amount)}</div>
                   </div>
                 </div>
               </div>

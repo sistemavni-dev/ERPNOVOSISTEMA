@@ -66,7 +66,7 @@ export function PwaPrompt() {
       <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-indigo-900 border border-indigo-700 text-white p-4 rounded-xl shadow-2xl z-50 flex flex-col gap-3">
         <div>
           <h3 className="font-bold text-sm">Nova atualização disponível!</h3>
-          <p className="text-xs text-indigo-300 mt-1">Clique para atualizar a versão do NexERP e receber as últimas novidades.</p>
+          <p className="text-xs text-indigo-300 mt-1">Clique para atualizar a versão do VniERP Vender+ e receber as últimas novidades.</p>
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => setNeedRefresh(false)} className="text-indigo-300 hover:text-white">Agora Não</Button>
@@ -85,7 +85,7 @@ export function PwaPrompt() {
             <Download className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-sm">Instalar NexERP</h3>
+            <h3 className="font-bold text-sm">Instalar VniERP Vender+</h3>
             <p className="text-xs text-zinc-400 mt-0.5">Tenha o sistema no seu celular.</p>
           </div>
         </div>

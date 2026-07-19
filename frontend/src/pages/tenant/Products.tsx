@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { Package, Plus, Search, Trash2, ArrowLeft, Sparkles, Upload, Edit, X } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Products() {
   const [products, setProducts] = useState<any[]>([])
@@ -16,6 +17,9 @@ export default function Products() {
   const [sku, setSku] = useState("")
   const [stockQuantity, setStockQuantity] = useState("")
   const [minStock, setMinStock] = useState("")
+  const [ncm, setNcm] = useState("")
+  const [cest, setCest] = useState("")
+  const [origin, setOrigin] = useState("0")
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string>("")
   const [taxRegime, setTaxRegime] = useState<"Simples Nacional" | "Lucro Presumido" | "Lucro Real">("Simples Nacional")
@@ -189,7 +193,10 @@ export default function Products() {
           image_url: imageUrl, 
           min_stock: parseInt(minStock),
           tax_regime: taxRegime,
-          default_tax_rate: newTaxRate
+          default_tax_rate: newTaxRate,
+          ncm: ncm || null,
+          cest: cest || null,
+          origin: parseInt(origin) || 0
         })
         .eq('id', editingProductId)
 
@@ -220,7 +227,10 @@ export default function Products() {
           image_url: imageUrl, 
           min_stock: parseInt(minStock),
           tax_regime: taxRegime,
-          default_tax_rate: newTaxRate
+          default_tax_rate: newTaxRate,
+          ncm: ncm || null,
+          cest: cest || null,
+          origin: parseInt(origin) || 0
         }])
         .select()
         .single()
@@ -249,6 +259,9 @@ export default function Products() {
     setImageFile(null)
     setTaxRegime(product.tax_regime || "Simples Nacional")
     setDefaultTaxRate(product.default_tax_rate?.toString() || "6.00")
+    setNcm(product.ncm || "")
+    setCest(product.cest || "")
+    setOrigin(product.origin?.toString() || "0")
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -265,6 +278,9 @@ export default function Products() {
     setPreviewUrl("")
     setTaxRegime("Simples Nacional")
     setDefaultTaxRate("6.00")
+    setNcm("")
+    setCest("")
+    setOrigin("0")
   }
 
   const deleteProduct = async (id: string) => {
@@ -394,20 +410,25 @@ export default function Products() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
-      <div className="mb-8 flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Package className="w-6 h-6 md:w-8 md:h-8 text-primary" /> Produtos e Estoque
-            </h1>
-            <p className="text-muted-foreground mt-1">Gerencie seu catálogo de produtos.</p>
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground">
+      <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="flex items-center justify-between w-full md:w-auto gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+                <Package className="w-6 h-6 md:w-8 md:h-8 text-primary" /> Produtos e Estoque
+              </h1>
+              <p className="text-muted-foreground mt-1">Gerencie seu catálogo de produtos.</p>
+            </div>
+          </div>
+          <div className="md:hidden">
+            <ThemeToggle />
           </div>
         </div>
-        <div>
+        <div className="flex items-center gap-2">
           <input 
             type="file" 
             id="xml-upload" 
@@ -415,9 +436,12 @@ export default function Products() {
             className="hidden" 
             onChange={handleFileUpload}
           />
-          <Button onClick={() => document.getElementById('xml-upload')?.click()} variant="outline" className="gap-2">
+          <Button onClick={() => document.getElementById('xml-upload')?.click()} variant="outline" className="gap-2 bg-background">
             <Upload className="w-4 h-4" /> Importar XML
           </Button>
+          <div className="hidden md:block">
+            <ThemeToggle />
+          </div>
         </div>
       </div>
 
@@ -452,6 +476,34 @@ export default function Products() {
                     <Input type="number" step="0.01" value={price} onChange={handlePriceChange} required placeholder="Ex: 49.90" />
                   </div>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">NCM (8 dígitos)</label>
+                    <Input value={ncm} onChange={e => setNcm(e.target.value.replace(/\D/g, '').substring(0, 8))} required placeholder="Ex: 61091000" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">CEST</label>
+                    <Input value={cest} onChange={e => setCest(e.target.value.replace(/\D/g, '').substring(0, 7))} placeholder="Ex: 2803800" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Origem do Produto</label>
+                    <select 
+                      value={origin} 
+                      onChange={e => setOrigin(e.target.value)} 
+                      className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="0">0 - Nacional</option>
+                      <option value="1">1 - Estrangeira (Importação direta)</option>
+                      <option value="2">2 - Estrangeira (Adquirida no mercado interno)</option>
+                      <option value="3">3 - Nacional (Conteúdo de Importação {'>'} 40%)</option>
+                      <option value="4">4 - Nacional (Processos produtivos básicos)</option>
+                      <option value="5">5 - Nacional (Conteúdo de Importação {'<'} 40%)</option>
+                      <option value="6">6 - Estrangeira (Importação direta, sem similar)</option>
+                      <option value="7">7 - Estrangeira (Mercado interno, sem similar)</option>
+                      <option value="8">8 - Nacional (Conteúdo de Importação {'>'} 70%)</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Regime Tributário (Enquadramento)</label>
                   <select 
@@ -460,8 +512,8 @@ export default function Products() {
                     className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     <option value="Simples Nacional">Simples Nacional</option>
-                    <option value="Lucro Presumido">Lucro Presumido</option>
-                    <option value="Lucro Real">Lucro Real</option>
+                    <option value="Lucro Presumido" disabled>Lucro Presumido (Em breve)</option>
+                    <option value="Lucro Real" disabled>Lucro Real (Em breve)</option>
                   </select>
                 </div>
                 {taxRegime === "Simples Nacional" && (
@@ -541,7 +593,7 @@ export default function Products() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {suggestions.slice(0, 4).map(s => (
-                    <div key={s.id} className="p-3.5 bg-slate-950/40 rounded-xl border border-white/5 flex flex-col justify-between hover:border-purple-500/25 transition-all">
+                    <div key={s.id} className="p-3.5 bg-background rounded-xl border border-border flex flex-col justify-between hover:border-purple-500/25 transition-all shadow-sm">
                       <div>
                         <div className="flex justify-between items-start gap-2">
                           <h4 className="font-bold text-white text-sm line-clamp-1">{s.name}</h4>
@@ -555,9 +607,9 @@ export default function Products() {
                         <p className="text-[10px] text-zinc-500 font-mono mt-0.5">SKU: {s.sku || '---'}</p>
                       </div>
 
-                      <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center text-xs">
-                        <div className="text-zinc-400 space-y-0.5">
-                          <div>Estoque atual: <span className="text-white font-mono font-bold">{s.currentStock} un</span></div>
+                      <div className="mt-4 pt-3 border-t border-border flex justify-between items-center text-xs">
+                        <div className="text-muted-foreground space-y-0.5">
+                          <div>Estoque atual: <span className="text-foreground font-mono font-bold">{s.currentStock} un</span></div>
                           <div>Previsão: <span className="text-white font-bold">{s.daysRemaining !== null ? `${s.daysRemaining} dias restando` : 'Sem giro recente'}</span></div>
                         </div>
                         <div className="text-right">

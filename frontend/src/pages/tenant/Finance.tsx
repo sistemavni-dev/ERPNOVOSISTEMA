@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { DollarSign, ArrowUpRight, ArrowDownRight, Clock, ArrowLeft, Edit2, Trash2 } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Finance() {
   const [transactions, setTransactions] = useState<any[]>([])
@@ -208,7 +209,7 @@ export default function Finance() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground">
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
@@ -221,6 +222,7 @@ export default function Finance() {
             <p className="text-muted-foreground mt-1">Fluxo de caixa e contas a pagar/receber.</p>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

@@ -12,15 +12,22 @@ serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Falta o token de autorização (Authorization header)' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: authHeader } } }
     )
 
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    const token = authHeader.replace('Bearer ', '')
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token)
+    
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: `Sessão expirada ou token inválido: ${userError?.message || 'Usuário não encontrado'}` }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const tenantId = user.id
@@ -36,7 +43,7 @@ serve(async (req) => {
     const hasOuroAccess = tenant?.plan === 'ouro' || (tenant?.subscription_status === 'trialing' && !isTrialExpired)
 
     if (!hasOuroAccess) {
-      return new Response(JSON.stringify({ error: 'Funcionalidade exclusiva do Plano Ouro.' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Funcionalidade exclusiva do Plano Ouro.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Busca configurações do Telegram Bot
@@ -47,14 +54,14 @@ serve(async (req) => {
       .single()
 
     if (!agent || !agent.is_active || !agent.bot_token) {
-      return new Response(JSON.stringify({ error: 'O Telegram Bot não está configurado ou ativo no painel.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'O Telegram Bot não está configurado ou ativo no painel.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     const { target_customers, text } = await req.json()
 
     // target_customers deve ser uma lista de telegram_chat_id
     if (!Array.isArray(target_customers) || target_customers.length === 0 || !text) {
-      return new Response(JSON.stringify({ error: 'Dados inválidos. Envie a lista de clientes com Telegram e o texto da campanha.' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ error: 'Dados inválidos. Envie a lista de clientes com Telegram e o texto da campanha.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     let successCount = 0
@@ -93,6 +100,6 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error(error)
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ error: error.message }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })

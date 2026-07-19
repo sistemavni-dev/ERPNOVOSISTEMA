@@ -4,7 +4,9 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { Settings as SettingsIcon, ArrowLeft, Save, Building2, Store, Bot, Smartphone } from "lucide-react"
+import { Settings as SettingsIcon, ArrowLeft, Save, Building2, Store, Bot, Smartphone, FileKey } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
+import { encryptData } from "../../lib/utils"
 
 export default function Settings() {
   const [loading, setLoading] = useState(false)
@@ -16,6 +18,13 @@ export default function Settings() {
   const [name, setName] = useState("")
   const [document, setDocument] = useState("")
   const [address, setAddress] = useState("")
+  const [accountantEmail, setAccountantEmail] = useState("")
+  const [ie, setIe] = useState("")
+  const [taxRegime, setTaxRegime] = useState("Simples Nacional")
+  const [certificatePassword, setCertificatePassword] = useState("")
+  const [certificateFile, setCertificateFile] = useState<File | null>(null)
+  const [hasCertificate, setHasCertificate] = useState(false)
+  const [nfeCount, setNfeCount] = useState(0)
 
   // Vitrine Virtual
   const [storeSlug, setStoreSlug] = useState("")
@@ -53,11 +62,15 @@ export default function Settings() {
         setName(tenant.name || "")
         setDocument(tenant.document || "")
         setAddress(tenant.address || "")
+        setAccountantEmail(tenant.accountant_email || "")
         setStoreSlug(tenant.store_slug || "")
         setWhatsapp(tenant.whatsapp_number || "")
         setStoreDescription(tenant.store_description || "")
         setPlan(tenant.plan)
         setThemeColor(tenant.theme_color || "dark")
+        setIe(tenant.ie || "")
+        setTaxRegime(tenant.tax_regime || "Simples Nacional")
+        setHasCertificate(!!tenant.certificate_a1_path)
       }
 
       // Buscar configurações do agente do telegram
@@ -76,6 +89,20 @@ export default function Settings() {
         setFeatures(agent.features || [])
         setWebhookStatus(agent.webhook_status || "disconnected")
       }
+
+      // Buscar total de notas emitidas no mês atual
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0,0,0,0);
+      
+      const { count } = await supabase
+        .from('sales')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', user.id)
+        .gte('created_at', startOfMonth.toISOString())
+        .eq('nfe_status', 'emitida');
+        
+      if (count !== null) setNfeCount(count);
     }
     setLoading(false)
   }
@@ -87,17 +114,46 @@ export default function Settings() {
     setLoading(true)
     setSuccess(false)
     
+    let certPath = undefined
+    let certPassword = undefined
+    
+    if (certificateFile) {
+      const fileName = `${profileId}/certificado.pfx`
+      const { error: uploadError } = await supabase.storage
+        .from('certificates')
+        .upload(fileName, certificateFile, { upsert: true })
+        
+      if (uploadError) {
+        alert("Erro no upload do certificado: " + uploadError.message)
+        setLoading(false)
+        return
+      }
+      certPath = fileName
+    }
+
+    if (certificatePassword) {
+      certPassword = encryptData(certificatePassword)
+    }
+
+    const updatePayload: any = {
+      name,
+      document,
+      ie,
+      tax_regime: taxRegime,
+      address,
+      accountant_email: accountantEmail,
+      store_slug: storeSlug || null,
+      whatsapp_number: whatsapp,
+      store_description: storeDescription,
+      theme_color: themeColor
+    }
+
+    if (certPath) updatePayload.certificate_a1_path = certPath
+    if (certPassword) updatePayload.certificate_a1_password = certPassword
+
     const { error } = await supabase
       .from('tenants')
-      .update({
-        name,
-        document,
-        address,
-        store_slug: storeSlug || null, // Permite nulo se vazio
-        whatsapp_number: whatsapp,
-        store_description: storeDescription,
-        theme_color: themeColor
-      })
+      .update(updatePayload)
       .eq('id', profileId)
 
     // Salvar configurações do agente em conjunto
@@ -171,7 +227,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground">
       <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center max-w-4xl mx-auto gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
@@ -184,6 +240,7 @@ export default function Settings() {
             <p className="text-muted-foreground mt-1">Gerencie os dados da sua empresa e vitrine virtual.</p>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
@@ -225,6 +282,84 @@ export default function Settings() {
                     placeholder="Rua Exemplo, 123 - Centro, São Paulo - SP" 
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">E-mail do Contador</label>
+                  <Input 
+                    type="email"
+                    value={accountantEmail} 
+                    onChange={e => setAccountantEmail(e.target.value)} 
+                    placeholder="contador@escritorio.com.br" 
+                  />
+                </div>
+                
+                <hr className="border-border my-4" />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                    <FileKey className="w-4 h-4" /> Faturamento e NFe
+                  </h3>
+                  {plan !== 'bronze' && (
+                    <div className="text-xs font-medium text-muted-foreground bg-muted px-2.5 py-1.5 rounded-md border border-border shadow-sm">
+                      Notas emitidas este mês: <span className="text-foreground font-bold">{nfeCount} / {plan === 'enterprise' ? 2000 : (plan === 'ouro' ? 300 : 100)}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Inscrição Estadual (IE)</label>
+                    <Input 
+                      value={ie} 
+                      onChange={e => setIe(e.target.value)} 
+                      placeholder="Números ou ISENTO" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Regime Tributário</label>
+                    <select 
+                      value={taxRegime} 
+                      onChange={e => setTaxRegime(e.target.value)} 
+                      className="w-full h-10 rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="Simples Nacional">Simples Nacional</option>
+                      <option value="Lucro Presumido">Lucro Presumido</option>
+                      <option value="Lucro Real">Lucro Real</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="space-y-2 mt-2 p-4 bg-muted/50 rounded-lg border border-border">
+                  <label className="text-sm font-medium block mb-2">Certificado Digital A1 (.pfx, .p12)</label>
+                  {plan === 'bronze' ? (
+                    <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground border border-border flex flex-col md:flex-row items-center justify-between gap-3">
+                      <span>Emissão de Notas Fiscais é exclusiva dos planos Prata e Ouro.</span>
+                      <Button type="button" variant="outline" size="sm" onClick={() => navigate('/planos')}>Fazer Upgrade</Button>
+                    </div>
+                  ) : (
+                    <>
+                  {hasCertificate && (
+                    <div className="text-xs text-emerald-500 mb-2 font-medium flex items-center gap-1">
+                      Certificado instalado. Envie um novo arquivo caso precise atualizar.
+                    </div>
+                  )}
+                  <input 
+                    type="file" 
+                    accept=".pfx,.p12"
+                    onChange={e => setCertificateFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-muted-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                  <div className="mt-3">
+                    <label className="text-xs font-medium">Senha do Certificado</label>
+                    <Input 
+                      type="password"
+                      value={certificatePassword} 
+                      onChange={e => setCertificatePassword(e.target.value)} 
+                      placeholder={hasCertificate ? "Deixe em branco para manter a atual" : "Senha de importação"} 
+                      className="mt-1"
+                    />
+                  </div>
+                    </>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -237,7 +372,18 @@ export default function Settings() {
                 <CardDescription>Configure como seus clientes verão sua loja online.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
+                {plan === 'bronze' || plan === 'prata' ? (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-4 bg-muted/50 rounded-lg border border-dashed border-border">
+                    <Store className="w-10 h-10 text-muted-foreground opacity-50" />
+                    <div>
+                      <h3 className="font-bold text-foreground">Vitrine Virtual Bloqueada</h3>
+                      <p className="text-muted-foreground text-xs mt-1">Disponível apenas no Plano Ouro.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => navigate('/planos')}>Fazer Upgrade</Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
                   <label className="text-sm font-medium">Link da Loja (ex: lojadox)</label>
                   <Input 
                     value={storeSlug} 
@@ -260,18 +406,11 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">WhatsApp p/ Pedidos Automáticos</label>
-                  {plan === 'prata' ? (
-                    <div className="p-3 bg-muted rounded-md text-sm text-muted-foreground border border-border flex items-center justify-between">
-                      <span>Esta funcionalidade é exclusiva do Plano Ouro.</span>
-                      <Button type="button" variant="outline" size="sm" onClick={() => navigate('/planos')}>Fazer Upgrade</Button>
-                    </div>
-                  ) : (
-                    <Input 
-                      value={whatsapp} 
-                      onChange={e => setWhatsapp(e.target.value)} 
-                      placeholder="5511999999999" 
-                    />
-                  )}
+                  <Input 
+                    value={whatsapp} 
+                    onChange={e => setWhatsapp(e.target.value)} 
+                    placeholder="5511999999999" 
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Descrição da Loja</label>
@@ -285,8 +424,8 @@ export default function Settings() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tema da Vitrine</label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button type="button" onClick={() => setThemeColor('dark')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'dark' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-zinc-400 hover:border-zinc-500'}`}>
-                      <div className="w-4 h-4 rounded-full bg-[#07070b] border border-white/20 mr-2" />
+                    <button type="button" onClick={() => setThemeColor('dark')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'dark' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-muted-foreground hover:border-foreground'}`}>
+                      <div className="w-4 h-4 rounded-full bg-slate-950 border border-zinc-700 mr-2" />
                       Escuro Padrão
                     </button>
                     <button type="button" onClick={() => setThemeColor('light')} className={`p-4 border rounded-xl flex items-center justify-center font-bold text-sm transition-all ${themeColor === 'light' ? 'border-primary ring-2 ring-primary/20 bg-primary/5 text-primary' : 'border-border text-zinc-400 hover:border-zinc-500'}`}>
@@ -299,6 +438,8 @@ export default function Settings() {
                     </button>
                   </div>
                 </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -314,14 +455,14 @@ export default function Settings() {
                 <CardDescription>Configure as diretrizes e módulos que a Inteligência Artificial controlará no seu Bot do Telegram.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                {plan === 'prata' ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-4 bg-slate-900/10 rounded-lg border border-dashed border-white/5">
-                    <div className="p-4 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20">
+                {plan === 'bronze' || plan === 'prata' ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-4 text-center space-y-4 bg-muted/50 rounded-lg border border-dashed border-border">
+                    <div className="p-4 bg-purple-500/10 rounded-full text-purple-600 dark:text-purple-400 border border-purple-500/20">
                       <Bot className="w-12 h-12" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-white text-base">Agente Autônomo com IA Bloqueado</h3>
-                      <p className="text-zinc-500 text-xs mt-1 max-w-md">O Agente de WhatsApp Autônomo responde seus clientes, envia comprovantes e faz cobranças de forma 100% automatizada. Faça o upgrade para o Plano Ouro para ativar.</p>
+                      <h3 className="font-extrabold text-foreground text-base">Agente Autônomo com IA Bloqueado</h3>
+                      <p className="text-muted-foreground text-xs mt-1 max-w-md">O Agente de Telegram Autônomo responde seus clientes, envia comprovantes e faz cobranças de forma 100% automatizada. Faça o upgrade para o Plano Ouro para ativar.</p>
                     </div>
                     <Button type="button" className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold shadow-lg shadow-purple-500/25 border-0" onClick={() => navigate('/planos')}>Fazer Upgrade para Ouro</Button>
                   </div>

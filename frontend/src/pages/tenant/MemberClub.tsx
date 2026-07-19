@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
 import { ArrowLeft, Search, Crown, Sparkles, UserCheck, UserX, Award, ShieldAlert, Wallet } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function MemberClub() {
   const [customers, setCustomers] = useState<any[]>([])
@@ -104,7 +105,7 @@ export default function MemberClub() {
 
   if (plan === 'prata') {
     return (
-      <div className="p-4 md:p-8 bg-[#020617] min-h-screen dark text-foreground relative overflow-hidden flex flex-col justify-center items-center">
+      <div className="p-4 md:p-8 bg-background min-h-screen text-foreground relative overflow-hidden flex flex-col justify-center items-center">
         {/* Background Orbs */}
         <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
         <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
@@ -127,7 +128,7 @@ export default function MemberClub() {
   }
 
   return (
-    <div className="p-4 md:p-8 bg-[#020617] min-h-screen dark text-foreground relative overflow-hidden">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground relative overflow-hidden">
       {/* Background Orbs */}
       <div className="absolute top-[-30%] left-[-10%] w-[600px] h-[600px] bg-purple-600/5 rounded-full blur-[180px] pointer-events-none" />
       <div className="absolute bottom-[-30%] right-[-10%] w-[600px] h-[600px] bg-cyan-500/5 rounded-full blur-[180px] pointer-events-none" />
@@ -135,16 +136,17 @@ export default function MemberClub() {
       {/* Header */}
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="text-zinc-400 hover:text-white">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')} className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-indigo-200 to-white bg-clip-text text-transparent flex items-center gap-2">
+            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-indigo-200 to-primary bg-clip-text text-transparent flex items-center gap-2">
               <Crown className="w-7 h-7 md:w-8 md:h-8 text-purple-400 animate-pulse" /> Clube de Membros
             </h1>
-            <p className="text-zinc-400 mt-1 text-sm">Fidelize seus clientes com tratamento VIP e promoções exclusivas.</p>
+            <p className="text-muted-foreground mt-1 text-sm">Fidelize seus clientes com tratamento VIP e promoções exclusivas.</p>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       {migrationAlert && (
@@ -156,7 +158,7 @@ export default function MemberClub() {
               <p className="text-sm text-amber-300/90">
                 A tabela `customers` ainda não possui a coluna `is_club_member`. Execute a migration sql criada no diretório `supabase/migrations` (ou execute a query no SQL Editor do Supabase):
               </p>
-              <pre className="mt-2 p-2 bg-black/40 rounded text-xs font-mono select-all text-white">
+              <pre className="mt-2 p-2 bg-black/20 rounded text-xs font-mono select-all">
                 ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_club_member BOOLEAN DEFAULT FALSE;
               </pre>
             </div>
@@ -166,7 +168,7 @@ export default function MemberClub() {
 
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <Card className="bg-glass border border-white/5 bg-glass-hover shadow-lg">
+        <Card className="bg-card border-border shadow-md">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Membros do Clube</p>
@@ -178,7 +180,7 @@ export default function MemberClub() {
           </CardContent>
         </Card>
 
-        <Card className="bg-glass border border-white/5 bg-glass-hover shadow-lg">
+        <Card className="bg-card border-border shadow-md">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Taxa de Adesão</p>
@@ -190,7 +192,7 @@ export default function MemberClub() {
           </CardContent>
         </Card>
 
-        <Card className="bg-glass border border-white/5 bg-glass-hover shadow-lg">
+        <Card className="bg-card border-border shadow-md">
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Fora do Clube</p>
@@ -204,15 +206,15 @@ export default function MemberClub() {
       </div>
 
       {/* Search & List */}
-      <Card className="border-white/5 bg-slate-950/40 backdrop-blur-xl">
-        <CardHeader className="border-b border-white/5 pb-4">
+      <Card className="border-border bg-background backdrop-blur-xl">
+        <CardHeader className="border-b border-border pb-4">
           <CardTitle>Membros & Clientes</CardTitle>
           <CardDescription>Adicione clientes ao clube VIP ou gerencie seus status de membro.</CardDescription>
           <div className="mt-4 relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Buscar cliente por nome, whatsapp ou documento..." 
-              className="pl-9 bg-slate-900 border-white/5 text-white"
+              className="pl-9 bg-background border-border text-foreground"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -221,7 +223,7 @@ export default function MemberClub() {
         <CardContent className="p-0 overflow-x-auto">
           <div className="min-w-[800px]">
             <table className="w-full text-sm text-left">
-              <thead className="bg-white/5 border-b border-white/5 text-zinc-400">
+              <thead className="bg-muted/50 border-b border-border text-muted-foreground">
                 <tr>
                   <th className="px-6 py-3 font-medium">Cliente</th>
                   <th className="px-6 py-3 font-medium">Contato</th>
@@ -231,19 +233,19 @@ export default function MemberClub() {
                   <th className="px-6 py-3 text-right">Ação</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border">
                 {filteredCustomers.map((c) => (
-                  <tr key={c.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-white flex items-center gap-2">
+                  <tr key={c.id} className="hover:bg-muted/50 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-foreground flex items-center gap-2">
                       {c.is_club_member && <Crown className="w-4 h-4 text-purple-400 shrink-0" />}
                       {c.name}
                     </td>
-                    <td className="px-6 py-4 text-zinc-400">
+                    <td className="px-6 py-4 text-muted-foreground">
                       <div>{c.phone}</div>
                       <div className="text-xs">{c.email}</div>
                     </td>
-                    <td className="px-6 py-4 text-zinc-400 font-mono text-xs">{c.document || '---'}</td>
-                    <td className="px-6 py-4 font-bold text-green-400">
+                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{c.document || '---'}</td>
+                    <td className="px-6 py-4 font-bold text-green-500">
                       {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(c.cashback_balance || 0)}
                     </td>
                     <td className="px-6 py-4">

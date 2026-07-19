@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
-import { Card, CardContent, CardTitle, CardDescription } from "../../components/ui/card"
-import { ShoppingCart, Search, Plus, Minus, Trash, CheckCircle, FileText, User, Printer, ArrowLeft, Package, ChevronUp, QrCode, Copy } from "lucide-react"
+import { Card, CardTitle, CardDescription } from "../../components/ui/card"
+import { ShoppingCart, Search, Plus, Minus, Trash, CheckCircle, FileText, User, Printer, ArrowLeft, Package, ChevronUp, QrCode, Copy, MessageCircle, AlertTriangle, Lock } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 interface Product {
   id: string
@@ -35,6 +36,8 @@ export default function POS() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [emitNfe, setEmitNfe] = useState(false)
+  const [sendWhatsapp, setSendWhatsapp] = useState(false)
+  const [showNfeLimitModal, setShowNfeLimitModal] = useState(false)
   
   // Novos estados
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
@@ -120,6 +123,11 @@ export default function POS() {
   const cashbackDeducted = Math.min(amountBeforeCashback, customerBalance)
   const totalAmount = Math.max(0, amountBeforeCashback - cashbackDeducted)
 
+  const handleQuote = async () => {
+    if (cart.length === 0) return
+    await proceedToCheckout(true)
+  }
+
   const handleCheckout = async () => {
     if (cart.length === 0) return
     
@@ -135,19 +143,43 @@ export default function POS() {
       setPixPayload(payload)
       setShowPixModal(true)
     } else {
-      await proceedToCheckout()
+      await proceedToCheckout(false)
     }
   }
 
-  const proceedToCheckout = async () => {
+  const proceedToCheckout = async (isQuote = false) => {
     setLoading(true)
+
+    // Validação de limite de NF-e para o plano atual
+    if (emitNfe && !isQuote) {
+      const plan = tenant?.plan;
+      const limit = plan === 'enterprise' ? 2000 : (plan === 'ouro' ? 300 : (plan === 'prata' ? 100 : 0));
+      
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0,0,0,0);
+      
+      const { count } = await supabase
+        .from('sales')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenant.id)
+        .gte('created_at', startOfMonth.toISOString())
+        .eq('nfe_status', 'emitida');
+
+      if (count !== null && count >= limit) {
+        alert(`Atenção: Você atingiu o limite de emissões de NF-e do seu plano (${limit}/mês). Faça um upgrade para continuar emitindo.`);
+        setLoading(false);
+        return;
+      }
+    }
+
     // 1. Criar a venda base
     const { data: sale, error: saleError } = await supabase
       .from('sales')
       .insert([{ 
         tenant_id: tenant.id,
         total_amount: totalAmount, 
-        status: paymentMethod === 'installments' ? 'pending' : 'paid', 
+        status: isQuote ? 'quote' : (paymentMethod === 'installments' ? 'pending' : 'paid'), 
         customer_id: selectedCustomer || null,
         discount: discountAmount
       }])
@@ -174,46 +206,48 @@ export default function POS() {
     // 3. Lógica Financeira (À Vista vs A Prazo)
     let generatedInstallments: any[] = []
     
-    if (paymentMethod === 'installments') {
-      const numInstallments = parseInt(installmentPlan)
-      const installmentAmount = totalAmount / numInstallments
-      const transactions = []
-      
-      for (let i = 1; i <= numInstallments; i++) {
-        const dueDate = new Date()
-        dueDate.setDate(dueDate.getDate() + (30 * i))
+    if (!isQuote) {
+      if (paymentMethod === 'installments') {
+        const numInstallments = parseInt(installmentPlan)
+        const installmentAmount = totalAmount / numInstallments
+        const transactions = []
         
-        const instDateStr = dueDate.toISOString().split('T')[0]
+        for (let i = 1; i <= numInstallments; i++) {
+          const dueDate = new Date()
+          dueDate.setDate(dueDate.getDate() + (30 * i))
+          
+          const instDateStr = dueDate.toISOString().split('T')[0]
+          
+          transactions.push({
+            tenant_id: tenant.id,
+            sale_id: sale.id,
+            type: 'receivable',
+            amount: installmentAmount,
+            due_date: instDateStr,
+            status: 'pending', // Fica pendente no caixa!
+            category: `Parcela ${i}/${numInstallments} - PDV (A Prazo)`
+          })
+          
+          generatedInstallments.push({
+            number: i,
+            amount: installmentAmount,
+            due_date: instDateStr
+          })
+        }
         
-        transactions.push({
-          tenant_id: tenant.id,
-          sale_id: sale.id,
-          type: 'receivable',
-          amount: installmentAmount,
-          due_date: instDateStr,
-          status: 'pending', // Fica pendente no caixa!
-          category: `Parcela ${i}/${numInstallments} - PDV (A Prazo)`
-        })
-        
-        generatedInstallments.push({
-          number: i,
-          amount: installmentAmount,
-          due_date: instDateStr
-        })
+        await supabase.from('financial_transactions').insert(transactions)
+      } else {
+        // Venda à vista (Dinheiro, PIX, Cartão) - Já entra liquidada
+        await supabase.from('financial_transactions').insert([{
+           tenant_id: tenant.id,
+           sale_id: sale.id,
+           type: 'receivable',
+           amount: totalAmount,
+           due_date: new Date().toISOString().split('T')[0],
+           status: 'paid', // Liquidada!
+           category: `Venda à Vista PDV - ${paymentMethod.toUpperCase()}`
+        }])
       }
-      
-      await supabase.from('financial_transactions').insert(transactions)
-    } else {
-      // Venda à vista (Dinheiro, PIX, Cartão) - Já entra liquidada
-      await supabase.from('financial_transactions').insert([{
-         tenant_id: tenant.id,
-         sale_id: sale.id,
-         type: 'receivable',
-         amount: totalAmount,
-         due_date: new Date().toISOString().split('T')[0],
-         status: 'paid', // Liquidada!
-         category: `Venda à Vista PDV - ${paymentMethod.toUpperCase()}`
-      }])
     }
 
     // 4. Lógica de Cashback (Manual do operador) + Adicionar Troco ao Saldo - Deduzir saldo usado
@@ -228,7 +262,7 @@ export default function POS() {
     if (selectedCustomer) {
       updatedCustomerInfo = customers.find(c => c.id === selectedCustomer)
       
-      if (updatedCustomerInfo) {
+      if (updatedCustomerInfo && !isQuote) {
         const newBalance = Math.max(0, (updatedCustomerInfo.cashback_balance || 0) + totalCashbackToAdd)
         await supabase.from('customers')
           .update({ cashback_balance: newBalance })
@@ -237,11 +271,23 @@ export default function POS() {
     }
 
     // 5. Integrações Extras (NFe, WhatsApp)
-    if (emitNfe) {
-      supabase.functions.invoke('emit-nfe', { body: { sale_id: sale.id } }).catch(console.error)
+    if (emitNfe && !isQuote) {
+      try {
+        const { data, error } = await supabase.functions.invoke('emit-nfe', { body: { sale_id: sale.id, tenant_id: tenant.id } })
+        if (error || (data && data.error)) {
+          const errCode = data?.code || error?.message
+          if (errCode === 'LIMIT_EXCEEDED' || (data?.error && data.error.includes('Limite'))) {
+            setShowNfeLimitModal(true)
+          } else {
+            console.error("Erro ao emitir NFe:", data?.error || error)
+          }
+        }
+      } catch (err) {
+        console.error("Exceção ao chamar emit-nfe:", err)
+      }
     }
 
-    if (updatedCustomerInfo && updatedCustomerInfo.phone) {
+    if (updatedCustomerInfo && updatedCustomerInfo.phone && !isQuote) {
       // Se for a prazo, manda o Carnê, senão manda recibo com cashback
       const webhookPayload = paymentMethod === 'installments' 
         ? {
@@ -261,10 +307,25 @@ export default function POS() {
           }
 
       supabase.functions.invoke('telegram-notifier', { body: webhookPayload }).catch(console.error)
+      
+      if (sendWhatsapp) {
+        const greetings = ["Olá", "Oi", "Tudo bem", "Como vai"];
+        const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+        const message = `${randomGreeting}, ${updatedCustomerInfo.name}! 🚀 Seu comprovante de compra na loja ${tenant.name || 'nossa loja'} no valor de R$ ${totalAmount.toFixed(2)} já está disponível. Agradecemos a preferência e volte sempre!`;
+        
+        supabase.functions.invoke('send-whatsapp', { 
+          body: { 
+            phone: updatedCustomerInfo.phone, 
+            message,
+            tenant_id: tenant.id
+          } 
+        }).catch(console.error)
+      }
     }
 
-    // 6. Preparar Recibo Não Fiscal
+    // 6. Preparar Recibo Não Fiscal / Orçamento
     setReceiptData({
+      isQuote,
       tenant,
       saleId: sale.id.slice(0, 8),
       date: new Date().toLocaleString('pt-BR'),
@@ -288,6 +349,7 @@ export default function POS() {
     setSuccess(true)
     setCart([])
     setEmitNfe(false)
+    setSendWhatsapp(false)
     setDiscountInput("")
     setCashbackInput("")
     setReceivedAmountInput("")
@@ -300,27 +362,68 @@ export default function POS() {
 
   const filteredProducts = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()) || p.sku?.includes(search))
 
+  const isOverdue = tenant?.subscription_status === 'overdue'
+  const overdueSince = tenant?.overdue_since ? new Date(tenant.overdue_since) : null
+  const daysOverdue = overdueSince ? Math.floor((new Date().getTime() - overdueSince.getTime()) / (1000 * 3600 * 24)) : 0
+  const isBlocked = isOverdue && daysOverdue > 3
+
+  if (isBlocked) {
+    return (
+      <div className="flex flex-col h-screen bg-background text-foreground items-center justify-center p-6 text-center">
+        <Lock className="w-16 h-16 text-destructive mb-4" />
+        <h1 className="text-3xl font-bold mb-2">Acesso Bloqueado</h1>
+        <p className="text-muted-foreground mb-6 max-w-md">Sua assinatura está inativa ou com o pagamento pendente há mais de 3 dias. Por favor, regularize sua situação para continuar usando o PDV.</p>
+        <Button onClick={() => navigate('/plans')} className="font-bold">Regularizar Assinatura</Button>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-background dark text-foreground overflow-hidden relative">
+    <>
+      {isOverdue && !isBlocked && (
+        <div className="w-full bg-destructive text-destructive-foreground text-center py-2 px-4 z-[200] font-medium flex items-center justify-center gap-2 shadow-lg">
+          <AlertTriangle className="w-5 h-5" />
+          Aviso: O seu pagamento está atrasado. O sistema será bloqueado em {3 - daysOverdue} dia(s). 
+          <Button variant="outline" size="sm" className="ml-4 h-7 text-xs bg-white text-destructive border-none hover:bg-zinc-100" onClick={() => navigate('/plans')}>Regularizar Agora</Button>
+        </div>
+      )}
+      <div className={`flex flex-col md:flex-row bg-background text-foreground overflow-hidden relative ${isOverdue ? 'h-[calc(100vh-48px)]' : 'h-screen'}`}>
+      
+      {/* Modal de Limite de NFe */}
+      {showNfeLimitModal && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-[300] p-4">
+          <Card className="w-full max-w-md border-border bg-card shadow-2xl p-6 relative overflow-hidden flex flex-col items-center text-center">
+            <AlertTriangle className="w-12 h-12 text-amber-500 mb-4" />
+            <CardTitle className="text-xl mb-2">Limite de Notas Atingido</CardTitle>
+            <CardDescription className="mb-6">
+              Você atingiu o limite mensal de emissão de NF-e do seu plano atual. A venda foi registrada, mas a nota fiscal não pôde ser emitida.
+            </CardDescription>
+            <div className="flex gap-3 w-full">
+              <Button variant="outline" className="flex-1" onClick={() => setShowNfeLimitModal(false)}>Fechar</Button>
+              <Button className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold" onClick={() => navigate('/plans')}>Ver Planos</Button>
+            </div>
+          </Card>
+        </div>
+      )}
       
       {/* Modal do PIX Dinâmico */}
       {showPixModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-          <Card className="w-full max-w-md border-white/5 bg-slate-900 shadow-2xl p-6 relative overflow-hidden flex flex-col items-center">
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <Card className="w-full max-w-md border-border bg-card shadow-2xl p-6 relative overflow-hidden flex flex-col items-center">
             <div className="absolute top-[-20%] left-[-10%] w-[250px] h-[250px] bg-purple-600/10 rounded-full blur-[80px] pointer-events-none" />
             <div className="absolute bottom-[-20%] right-[-10%] w-[250px] h-[250px] bg-cyan-500/10 rounded-full blur-[80px] pointer-events-none" />
 
             <div className="text-center space-y-1 mb-6 z-10 w-full">
-              <CardTitle className="text-white text-lg flex items-center justify-center gap-2">
+              <CardTitle className="text-card-foreground text-lg flex items-center justify-center gap-2">
                 <QrCode className="w-5 h-5 text-purple-400 animate-pulse" /> PIX Dinâmico Gerado
               </CardTitle>
-              <CardDescription className="text-zinc-400 text-xs">
+              <CardDescription className="text-muted-foreground text-xs">
                 Apresente o QR Code abaixo ao cliente ou copie a chave.
               </CardDescription>
             </div>
 
             {/* QR Code Container */}
-            <div className="bg-white p-4 rounded-2xl shadow-lg border border-white/10 mb-6 relative group">
+            <div className="bg-white p-4 rounded-2xl shadow-lg border border-border mb-6 relative group">
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pixPayload)}`} 
                 alt="QR Code PIX" 
@@ -329,7 +432,7 @@ export default function POS() {
             </div>
 
             {/* Spinner Status */}
-            <div className="flex items-center gap-3 text-sm text-zinc-400 mb-6 bg-slate-950/50 px-4 py-2 rounded-full border border-white/5 font-medium animate-pulse">
+            <div className="flex items-center gap-3 text-sm text-muted-foreground mb-6 bg-muted px-4 py-2 rounded-full border border-border font-medium animate-pulse">
               <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping"></span>
               Aguardando confirmação bancária...
             </div>
@@ -340,7 +443,7 @@ export default function POS() {
                 <Input 
                   readOnly 
                   value={pixPayload} 
-                  className="bg-slate-950 border-white/5 text-zinc-400 font-mono text-[10px] h-10 select-all" 
+                  className="bg-background border-border text-foreground font-mono text-[10px] h-10 select-all" 
                 />
                 <Button 
                   variant="outline" 
@@ -360,7 +463,7 @@ export default function POS() {
             <div className="grid grid-cols-2 gap-3 w-full z-10">
               <Button 
                 variant="outline" 
-                className="border-white/5 hover:bg-white/5" 
+                className="border-border hover:bg-muted" 
                 onClick={() => setShowPixModal(false)}
               >
                 Cancelar
@@ -391,11 +494,14 @@ export default function POS() {
 
       {/* Catálogo de Produtos */}
       <div className={`flex-1 flex flex-col p-4 md:p-6 overflow-hidden no-print ${isCartOpen ? 'hidden md:flex' : 'flex'}`}>
-        <div className="flex items-center gap-4 mb-4 md:mb-6">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
-            <ArrowLeft className="w-6 h-6" />
-          </Button>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">PDV</h1>
+        <div className="flex items-center justify-between mb-4 md:mb-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
+              <ArrowLeft className="w-6 h-6" />
+            </Button>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">PDV</h1>
+          </div>
+          <ThemeToggle />
         </div>
         
         <div className="flex flex-col md:flex-row gap-4 mb-4 md:mb-6">
@@ -415,9 +521,9 @@ export default function POS() {
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
             >
-              <option value="" className="bg-slate-900 text-white">Consumidor Final</option>
+              <option value="" className="bg-background text-foreground">Consumidor Final</option>
               {customers.map(c => (
-                <option key={c.id} value={c.id} className="bg-slate-900 text-white">{c.name} (Saldo: R$ {c.cashback_balance || 0})</option>
+                <option key={c.id} value={c.id} className="bg-background text-foreground">{c.name} (Saldo: R$ {c.cashback_balance || 0})</option>
               ))}
             </select>
           </div>
@@ -440,24 +546,26 @@ export default function POS() {
         <div className="flex-1 overflow-y-auto pr-2">
           <div className="flex flex-col gap-2">
             {filteredProducts.map(product => (
-              <Card key={product.id} className="cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors" onClick={() => addToCart(product)}>
-                <CardContent className="p-3 flex items-center gap-4">
-                  {product.image_url ? (
-                    <img src={product.image_url} alt={product.name} className="w-12 h-12 rounded-md object-cover flex-shrink-0 bg-muted" />
-                  ) : (
-                    <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center flex-shrink-0">
-                      <Package className="w-6 h-6 text-muted-foreground opacity-50" />
-                    </div>
-                  )}
-                  <div className="flex-1 text-left">
-                    <h3 className="font-semibold text-sm leading-tight">{product.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">SKU: {product.sku} • Estoque: {product.stock_quantity}</p>
+              <div 
+                key={product.id} 
+                className="flex items-center gap-3 p-2.5 rounded-lg border border-border bg-card dark:bg-slate-800/50 hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/10 transition-colors cursor-pointer" 
+                onClick={() => addToCart(product)}
+              >
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-md object-cover flex-shrink-0 bg-muted" />
+                ) : (
+                  <div className="w-10 h-10 bg-muted rounded-md flex items-center justify-center flex-shrink-0 border border-border/50">
+                    <Package className="w-5 h-5 text-muted-foreground opacity-50" />
                   </div>
-                  <div className="font-bold text-primary whitespace-nowrap">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
-                  </div>
-                </CardContent>
-              </Card>
+                )}
+                <div className="flex-1 text-left min-w-0">
+                  <h3 className="font-semibold text-sm truncate text-foreground dark:text-neutral-100">{product.name}</h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">SKU: {product.sku} • Est: {product.stock_quantity}</p>
+                </div>
+                <div className="font-bold text-primary dark:text-emerald-400 text-sm whitespace-nowrap shrink-0">
+                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
+                </div>
+              </div>
             ))}
             {filteredProducts.length === 0 && (
               <div className="text-center p-12 text-muted-foreground border-2 border-dashed border-border rounded-lg">
@@ -480,7 +588,7 @@ export default function POS() {
 
       {/* Carrinho / Checkout */}
       <div className={`w-full md:w-[450px] border-l border-border bg-card/30 backdrop-blur-md flex-col no-print absolute md:relative z-50 h-full transition-transform duration-300 ${isCartOpen ? 'translate-y-0 flex' : 'translate-y-full md:translate-y-0 md:flex'} bottom-0`}>
-        <div className="p-4 md:p-6 border-b border-border bg-card/50 flex justify-between items-center">
+        <div className="p-4 md:p-6 border-b border-border bg-card/50 flex justify-between items-center flex-none z-10">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" /> Carrinho
           </h2>
@@ -489,9 +597,10 @@ export default function POS() {
           </Button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto flex flex-col">
+          <div className="p-4 flex flex-col gap-3">
           {success && (
-            <div className="bg-green-500/20 text-green-500 p-4 rounded-lg flex flex-col items-center gap-3 border border-green-500/30 text-center">
+            <div className="bg-green-500/20 text-green-500 p-4 rounded-lg flex flex-col items-center gap-3 border border-green-500/30 text-center flex-none">
               <div className="flex items-center gap-2 font-bold text-lg">
                 <CheckCircle className="w-6 h-6" /> Venda Finalizada!
               </div>
@@ -502,31 +611,36 @@ export default function POS() {
           )}
           
           {cart.map(item => (
-            <div key={item.id} className="flex flex-col bg-background p-3 rounded-lg border border-white/5">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  {item.image_url && (
-                    <img src={item.image_url} className="w-6 h-6 rounded-sm object-cover bg-muted" />
-                  )}
-                  <span className="font-medium line-clamp-2">{item.name}</span>
+            <div key={item.id} className="flex items-center justify-between bg-card dark:bg-slate-800 p-2.5 rounded-lg border border-border shadow-sm gap-2 shrink-0 hover:bg-muted/30 transition-colors">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {item.image_url ? (
+                  <img src={item.image_url} className="w-8 h-8 rounded-md object-cover bg-muted shrink-0 border border-border/50" />
+                ) : (
+                  <div className="w-8 h-8 bg-muted rounded-md flex items-center justify-center shrink-0 border border-border/50">
+                     <Package className="w-4 h-4 text-muted-foreground opacity-50" />
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="font-medium text-foreground dark:text-neutral-100 text-sm truncate">{item.name}</span>
+                  <span className="text-primary dark:text-emerald-400 font-bold text-xs mt-0.5">
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.cartQuantity)}
+                  </span>
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/20 ml-2" onClick={() => removeFromCart(item.id)}>
-                  <Trash className="w-4 h-4" />
-                </Button>
               </div>
-              <div className="flex justify-between items-center">
-                <p className="text-primary font-semibold">
-                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.cartQuantity)}
-                </p>
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateQuantity(item.id, -1)}>
+              
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-0.5 text-foreground dark:text-neutral-100 bg-background dark:bg-slate-900 rounded-md p-0.5 border border-border shadow-sm">
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md hover:bg-muted dark:hover:bg-slate-700 shrink-0" onClick={() => updateQuantity(item.id, -1)}>
                     <Minus className="w-3 h-3" />
                   </Button>
-                  <span className="w-4 text-center font-medium">{item.cartQuantity}</span>
-                  <Button variant="outline" size="icon" className="h-7 w-7 rounded-full" onClick={() => updateQuantity(item.id, 1)}>
+                  <span className="w-6 text-center font-bold text-xs">{item.cartQuantity}</span>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 rounded-md hover:bg-muted dark:hover:bg-slate-700 shrink-0" onClick={() => updateQuantity(item.id, 1)}>
                     <Plus className="w-3 h-3" />
                   </Button>
                 </div>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10 shrink-0 rounded-md" onClick={() => removeFromCart(item.id)}>
+                  <Trash className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           ))}
@@ -536,9 +650,9 @@ export default function POS() {
               <p>Adicione itens ao carrinho</p>
             </div>
           )}
-        </div>
+          </div>
 
-        <div className="p-6 border-t border-border bg-card/80 backdrop-blur-xl space-y-4">
+          <div className="p-6 border-t border-border bg-card/80 backdrop-blur-xl space-y-4 mt-auto">
           
           {/* Forma de Pagamento e Desconto */}
           <div className="space-y-2">
@@ -549,10 +663,10 @@ export default function POS() {
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
-                <option value="money" className="bg-slate-900 text-white">Dinheiro</option>
-                <option value="pix" className="bg-slate-900 text-white">PIX</option>
-                <option value="card" className="bg-slate-900 text-white">Cartão</option>
-                <option value="installments" className="bg-slate-900 text-white">A Prazo (Carnê)</option>
+                <option value="money" className="bg-background text-foreground">Dinheiro</option>
+                <option value="pix" className="bg-background text-foreground">PIX</option>
+                <option value="card" className="bg-background text-foreground">Cartão</option>
+                <option value="installments" className="bg-background text-foreground">A Prazo (Carnê)</option>
               </select>
             </div>
 
@@ -564,9 +678,9 @@ export default function POS() {
                   value={installmentPlan}
                   onChange={(e) => setInstallmentPlan(e.target.value)}
                 >
-                  <option value="1" className="bg-slate-900 text-white">1x (30 dias)</option>
-                  <option value="2" className="bg-slate-900 text-white">2x (30 e 60 dias)</option>
-                  <option value="3" className="bg-slate-900 text-white">3x (30, 60 e 90 dias)</option>
+                  <option value="1" className="bg-background text-foreground">1x (30 dias)</option>
+                  <option value="2" className="bg-background text-foreground">2x (30 e 60 dias)</option>
+                  <option value="3" className="bg-background text-foreground">3x (30, 60 e 90 dias)</option>
                 </select>
               </div>
             )}
@@ -582,7 +696,7 @@ export default function POS() {
               />
             </div>
 
-            <div className={`flex justify-between items-center p-2 rounded-md border ${selectedCustomer ? 'bg-background border-input' : 'bg-zinc-800/10 border-white/5 opacity-50'}`}>
+            <div className={`flex justify-between items-center p-2 rounded-md border ${selectedCustomer ? 'bg-background border-input' : 'bg-muted border-border opacity-50'}`}>
               <span className="text-sm font-medium px-2">Gerar Cashback (R$):</span>
               <Input 
                 type="number" 
@@ -616,7 +730,7 @@ export default function POS() {
                       </span>
                     </div>
                     {selectedCustomer ? (
-                      <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                      <div className="flex items-center gap-2 pt-1 border-t border-border">
                         <input 
                           type="checkbox" 
                           id="addChangeToWallet"
@@ -650,26 +764,55 @@ export default function POS() {
               </div>
             </div>
 
-          <div className="flex items-center gap-2 p-3 border border-border rounded-lg bg-background">
+          <div className={`flex items-center gap-2 p-3 border rounded-lg ${tenant?.plan === 'bronze' ? 'bg-muted/50 border-dashed border-border' : 'border-border bg-background'}`}>
             <input 
               type="checkbox" 
               id="nfe" 
-              className="w-5 h-5 accent-primary cursor-pointer"
+              className="w-5 h-5 accent-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               checked={emitNfe}
               onChange={(e) => setEmitNfe(e.target.checked)}
+              disabled={tenant?.plan === 'bronze'}
             />
-            <label htmlFor="nfe" className="flex-1 cursor-pointer text-sm font-medium flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary" /> Emitir NFe Automática
+            <label htmlFor="nfe" className={`flex-1 cursor-pointer text-sm font-medium flex items-center gap-2 ${tenant?.plan === 'bronze' ? 'text-muted-foreground cursor-not-allowed' : ''}`}>
+              <FileText className={`w-4 h-4 ${tenant?.plan === 'bronze' ? 'text-muted-foreground' : 'text-primary'}`} /> Emitir NFe Automática
+              {tenant?.plan === 'bronze' && <span className="text-[10px] bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-full ml-auto font-bold">Plano Bronze Bloqueado</span>}
             </label>
           </div>
 
-          <Button 
-            className="w-full h-14 text-lg font-bold shadow-xl shadow-primary/20" 
-            disabled={cart.length === 0 || loading}
-            onClick={handleCheckout}
-          >
-            {loading ? "Processando..." : "Finalizar Venda"}
-          </Button>
+          <div className={`flex items-center gap-2 p-3 border rounded-lg ${!selectedCustomer || tenant?.plan === 'bronze' ? 'bg-muted/50 border-dashed border-border' : 'border-border bg-background'}`}>
+            <input 
+              type="checkbox" 
+              id="whatsapp" 
+              className="w-5 h-5 accent-green-500 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              checked={sendWhatsapp}
+              onChange={(e) => setSendWhatsapp(e.target.checked)}
+              disabled={!selectedCustomer || tenant?.plan === 'bronze'}
+            />
+            <label htmlFor="whatsapp" className={`flex-1 cursor-pointer text-sm font-medium flex items-center gap-2 ${!selectedCustomer || tenant?.plan === 'bronze' ? 'text-muted-foreground cursor-not-allowed' : ''}`}>
+              <MessageCircle className={`w-4 h-4 ${!selectedCustomer || tenant?.plan === 'bronze' ? 'text-muted-foreground' : 'text-green-500'}`} /> Enviar Comprovante via WhatsApp
+              {tenant?.plan === 'bronze' && <span className="text-[10px] bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-full ml-auto font-bold">Plano Bronze Bloqueado</span>}
+              {!selectedCustomer && tenant?.plan !== 'bronze' && <span className="text-[10px] text-muted-foreground px-2 py-0.5 ml-auto">Selecione um cliente</span>}
+            </label>
+          </div>
+
+          <div className="flex gap-2">
+            <Button 
+              variant="outline"
+              className="flex-1 h-14 text-sm md:text-lg font-bold shadow-xl border-primary/20 text-primary hover:bg-primary/5" 
+              disabled={cart.length === 0 || loading}
+              onClick={handleQuote}
+            >
+              {loading ? "..." : "Salvar Orçamento"}
+            </Button>
+            <Button 
+              className="flex-1 h-14 text-sm md:text-lg font-bold shadow-xl shadow-primary/20" 
+              disabled={cart.length === 0 || loading}
+              onClick={handleCheckout}
+            >
+              {loading ? "Processando..." : "Finalizar Venda"}
+            </Button>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -681,7 +824,8 @@ export default function POS() {
             <p>{receiptData.tenant?.address || 'Endereço não cadastrado'}</p>
             <p>CNPJ: {receiptData.tenant?.document || '00.000.000/0001-00'}</p>
             <br/>
-            <h3 className="font-bold">CUPOM NÃO FISCAL</h3>
+            <h3 className="font-bold">{receiptData.isQuote ? 'ORÇAMENTO' : 'CUPOM NÃO FISCAL'}</h3>
+            {receiptData.isQuote && <p className="text-xs uppercase">(Não é documento fiscal válido)</p>}
             <p>Pedido: #{receiptData.saleId}</p>
             <p>Data: {receiptData.date}</p>
           </div>
@@ -742,7 +886,7 @@ export default function POS() {
               </div>
             )}
 
-            {receiptData.cashbackEarned > 0 && (
+            {receiptData.cashbackEarned > 0 && !receiptData.isQuote && (
               <div className="mt-2 p-1 border border-black border-dashed">
                 <p className="font-bold">CASHBACK / SALDO GERADO</p>
                 <p className="text-lg">R$ {receiptData.cashbackEarned.toFixed(2)}</p>
@@ -751,7 +895,7 @@ export default function POS() {
               </div>
             )}
 
-            {receiptData.paymentMethod === 'money' && receiptData.receivedAmount > 0 && (
+            {receiptData.paymentMethod === 'money' && receiptData.receivedAmount > 0 && !receiptData.isQuote && (
               <div className="mt-2 text-left text-xs border-t border-black border-dashed pt-2 space-y-1">
                 <div className="flex justify-between">
                   <span>VALOR PAGO:</span>
@@ -773,5 +917,6 @@ export default function POS() {
         </div>
       )}
     </div>
+    </>
   )
 }

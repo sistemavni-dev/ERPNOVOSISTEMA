@@ -5,6 +5,7 @@ import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../../components/ui/card"
 import { Box, Lock, Mail } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Login() {
   const [email, setEmail] = useState("")
@@ -43,7 +44,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-4 relative overflow-hidden dark text-foreground">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 relative overflow-hidden text-foreground">
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
       {/* Orbes Neon Futuristas no Fundo */}
       <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[150px] animate-float" />
       <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-cyan-500/20 rounded-full blur-[150px] animate-float-delayed" />
@@ -53,18 +57,18 @@ export default function Login() {
           <Box className="w-10 h-10 text-white" />
         </div>
         <h1 className="text-4xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-indigo-200 to-cyan-400 bg-clip-text text-transparent">
-          NexERP Cloud
+          VniERP <span className="text-cyan-400">Vender+</span>
         </h1>
         <p className="text-muted-foreground text-sm mt-1 uppercase tracking-widest font-mono">Gestão inteligente e segura</p>
       </div>
 
-      <Card className="w-full max-w-md z-10 bg-glass border border-white/10 shadow-2xl relative overflow-hidden">
+      <Card className="w-full max-w-md z-10 bg-card border-border shadow-2xl relative overflow-hidden">
         {/* Glow Line em cima do Card */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 via-indigo-500 to-cyan-400" />
         
         <CardHeader className="space-y-2 text-center pt-8">
-          <CardTitle className="text-2xl font-bold tracking-tight text-white">Entrar na plataforma</CardTitle>
-          <CardDescription className="text-zinc-400">Insira suas credenciais para acessar seu painel.</CardDescription>
+          <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Entrar na plataforma</CardTitle>
+          <CardDescription className="text-muted-foreground">Insira suas credenciais para acessar seu painel.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
@@ -74,14 +78,14 @@ export default function Login() {
               </div>
             )}
             <div className="space-y-2">
-              <label className="text-xs font-mono text-zinc-400 uppercase">Email Corporativo</label>
+              <label className="text-xs font-mono text-muted-foreground uppercase">Email Corporativo</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                 <Input 
                   id="email" 
                   type="email" 
                   placeholder="seu@email.com" 
-                  className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
+                  className="pl-9 h-11 bg-background border-border focus:border-purple-500 focus:ring-purple-500/25 transition-all text-foreground placeholder:text-muted-foreground"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required 
@@ -89,14 +93,14 @@ export default function Login() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-mono text-zinc-400 uppercase">Senha de Acesso</label>
+              <label className="text-xs font-mono text-muted-foreground uppercase">Senha de Acesso</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-zinc-500" />
                 <Input 
                   id="password" 
                   type="password" 
                   placeholder="••••••••" 
-                  className="pl-9 h-11 bg-slate-900/50 border-white/5 focus:border-purple-500 focus:ring-purple-500/25 transition-all text-white placeholder:text-zinc-600"
+                  className="pl-9 h-11 bg-background border-border focus:border-purple-500 focus:ring-purple-500/25 transition-all text-foreground placeholder:text-muted-foreground"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required 
@@ -108,11 +112,11 @@ export default function Login() {
             <Button type="submit" className="w-full h-11 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-semibold transition-all shadow-lg shadow-purple-500/25 border-0" disabled={loading}>
               {loading ? "Autenticando..." : "Entrar no Painel"}
             </Button>
-            <div className="text-center text-sm text-zinc-400">
+            <div className="text-center text-sm text-muted-foreground">
               Não possui uma conta? <Button variant="link" className="p-0 h-auto text-purple-400 hover:text-purple-300 font-semibold" onClick={() => navigate('/register')}>Cadastre-se</Button>
             </div>
-            <div className="w-full border-t border-white/5 my-2 pt-2 text-center">
-              <Button variant="link" className="p-0 h-auto text-zinc-500 hover:text-zinc-400 text-xs font-mono" onClick={() => navigate('/super-admin')}>Acessar Super Admin</Button>
+            <div className="w-full border-t border-border my-2 pt-2 text-center">
+              <Button variant="link" className="p-0 h-auto text-muted-foreground hover:text-foreground text-xs font-mono" onClick={() => navigate('/super-admin')}>Acessar Super Admin</Button>
             </div>
           </CardFooter>
         </form>

@@ -1,6 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import AcceptTerms from './pages/auth/AcceptTerms'
+import TermsOfUse from './pages/public/TermsOfUse'
+import PrivacyPolicy from './pages/public/PrivacyPolicy'
 
 import SuperAdminDashboard from './pages/admin/SuperAdminDashboard'
 import TenantDashboard from './pages/tenant/TenantDashboard'
@@ -19,10 +22,11 @@ import Profile from './pages/tenant/Profile'
 import { PwaPrompt } from './components/PwaPrompt'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+import { ThemeProvider } from './components/ThemeProvider'
 
 // Guard para verificar se a assinatura está ativa ou em período de teste
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<'loading' | 'active' | 'pending' | 'unauthorized'>('loading')
+  const [status, setStatus] = useState<'loading' | 'active' | 'pending' | 'unauthorized' | 'needs_terms'>('loading')
 
   useEffect(() => {
     checkAccess()
@@ -37,7 +41,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     const { data } = await supabase
       .from('tenants')
-      .select('status, trial_ends_at, subscription_status')
+      .select('status, trial_start_at, subscription_status, accepted_terms, terms_version')
       .eq('id', user.id)
       .single()
 
@@ -46,8 +50,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at) : null
+    if (!data.accepted_terms || data.terms_version !== 'v1.0') {
+      setStatus('needs_terms')
+      return
+    }
+
+    if (data.status === 'suspended') {
+      setStatus('pending')
+      return
+    }
+
+    const trialStart = data.trial_start_at ? new Date(data.trial_start_at) : null
+    const trialEnds = trialStart ? new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000) : null
     const isTrialExpired = trialEnds ? trialEnds < new Date() : false
+
+    if (isTrialExpired && data.status !== 'suspended' && data.subscription_status !== 'active') {
+      await supabase.rpc('check_and_suspend_trial')
+      setStatus('pending')
+      return
+    }
 
     // Se o trial expirou e o plano não está ativo pago no Asaas, bloqueia
     if (isTrialExpired && data.subscription_status !== 'active') {
@@ -61,6 +82,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (status === 'loading') return <div className="min-h-screen bg-background text-foreground flex items-center justify-center">Verificando acesso...</div>
   if (status === 'unauthorized') return <Navigate to="/login" replace />
+  if (status === 'needs_terms') return <Navigate to="/aceitar-termos" replace />
   if (status === 'pending') return <Navigate to="/planos" replace />
   
   return children
@@ -110,14 +132,14 @@ function PlanRoute({ children, allowedPlans }: { children: React.ReactNode, allo
       return
     }
 
-    const { data } = await supabase.from('tenants').select('plan, subscription_status, trial_ends_at').eq('id', user.id).single()
+    const { data } = await supabase.from('tenants').select('plan, subscription_status, trial_start_at').eq('id', user.id).single()
     if (!data) {
       setPlanStatus('denied')
       return
     }
 
-    // Se estiver em trial válido, libera tudo provisoriamente (opcional)
-    const trialEnds = data.trial_ends_at ? new Date(data.trial_ends_at) : null
+    const trialStart = data.trial_start_at ? new Date(data.trial_start_at) : null
+    const trialEnds = trialStart ? new Date(trialStart.getTime() + 7 * 24 * 60 * 60 * 1000) : null
     const isTrialExpired = trialEnds ? trialEnds < new Date() : false
     
     // Libera se o plano for compatível OU se for um trial ainda válido
@@ -138,28 +160,33 @@ function PlanRoute({ children, allowedPlans }: { children: React.ReactNode, allo
 
 function App() {
   return (
-    <Router>
-      <PwaPrompt />
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
-        <Route path="/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
-        <Route path="/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
-        <Route path="/clientes" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Customers /></PlanRoute></ProtectedRoute>} />
-        <Route path="/campanhas" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><Campaigns /></PlanRoute></ProtectedRoute>} />
-        <Route path="/clube-membros" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><MemberClub /></PlanRoute></ProtectedRoute>} />
-        <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Finance /></PlanRoute></AdminRoute></ProtectedRoute>} />
-        <Route path="/fornecedores" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Suppliers /></PlanRoute></ProtectedRoute>} />
-        <Route path="/orcamentos" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><SupplierQuotes /></PlanRoute></ProtectedRoute>} />
-        <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Settings /></AdminRoute></ProtectedRoute>} />
-        <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-        <Route path="/planos" element={<Plans />} />
-        <Route path="/loja/:slug" element={<Storefront />} />
-        <Route path="/super-admin" element={<SuperAdminDashboard />} />
-        <Route path="/" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Router>
+    <ThemeProvider defaultTheme="dark" storageKey="theme">
+      <Router>
+        <PwaPrompt />
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/aceitar-termos" element={<AcceptTerms />} />
+          <Route path="/termos-de-uso" element={<TermsOfUse />} />
+          <Route path="/politica-privacidade" element={<PrivacyPolicy />} />
+          <Route path="/dashboard" element={<ProtectedRoute><TenantDashboard /></ProtectedRoute>} />
+          <Route path="/pdv" element={<ProtectedRoute><POS /></ProtectedRoute>} />
+          <Route path="/produtos" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+          <Route path="/clientes" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+          <Route path="/campanhas" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><Campaigns /></PlanRoute></ProtectedRoute>} />
+          <Route path="/clube-membros" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><MemberClub /></PlanRoute></ProtectedRoute>} />
+          <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Finance /></PlanRoute></AdminRoute></ProtectedRoute>} />
+          <Route path="/fornecedores" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Suppliers /></PlanRoute></ProtectedRoute>} />
+          <Route path="/orcamentos" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><SupplierQuotes /></PlanRoute></ProtectedRoute>} />
+          <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Settings /></AdminRoute></ProtectedRoute>} />
+          <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="/planos" element={<Plans />} />
+          <Route path="/loja/:slug" element={<Storefront />} />
+          <Route path="/super-admin" element={<SuperAdminDashboard />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   )
 }
 

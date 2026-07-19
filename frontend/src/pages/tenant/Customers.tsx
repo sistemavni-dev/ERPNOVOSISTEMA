@@ -4,13 +4,15 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card"
-import { Users, Plus, Trash2, CheckCircle, Clock, ArrowLeft, Wallet, Crown, MessageSquare, Sparkles } from "lucide-react"
+import { Users, Plus, Trash2, CheckCircle, Clock, ArrowLeft, Wallet, Crown, MessageSquare, Sparkles, Edit, X } from "lucide-react"
+import { ThemeToggle } from "../../components/ThemeToggle"
 
 export default function Customers() {
   const [customers, setCustomers] = useState<any[]>([])
   const [pendingOrders, setPendingOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(null)
   const [tenantPlan, setTenantPlan] = useState<string | null>(null)
   const [search] = useState("")
   const navigate = useNavigate()
@@ -20,6 +22,14 @@ export default function Customers() {
   const [document, setDocument] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
+  
+  // Fiscal / Address states
+  const [ie, setIe] = useState("")
+  const [addressStreet, setAddressStreet] = useState("")
+  const [addressNumber, setAddressNumber] = useState("")
+  const [addressDistrict, setAddressDistrict] = useState("")
+  const [addressZip, setAddressZip] = useState("")
+  const [addressIbge, setAddressIbge] = useState("")
 
   useEffect(() => {
     fetchTenantData()
@@ -58,22 +68,73 @@ export default function Customers() {
     else setPendingOrders(data || [])
   }
 
+  const handleEditCustomer = (customer: any) => {
+    setEditingCustomerId(customer.id)
+    setName(customer.name || "")
+    setDocument(customer.document || "")
+    setEmail(customer.email || "")
+    setPhone(customer.phone || "")
+    setIe(customer.ie || "")
+    setAddressStreet(customer.address_street || "")
+    setAddressNumber(customer.address_number || "")
+    setAddressDistrict(customer.address_district || "")
+    setAddressZip(customer.address_zip || "")
+    setAddressIbge(customer.address_ibge || "")
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEdit = () => {
+    setEditingCustomerId(null)
+    setName("")
+    setDocument("")
+    setEmail("")
+    setPhone("")
+    setIe("")
+    setAddressStreet("")
+    setAddressNumber("")
+    setAddressDistrict("")
+    setAddressZip("")
+    setAddressIbge("")
+  }
+
   const handleAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
 
-    // O RLS cuida de pegar o tenant_id do usuário logado
-    const { error } = await supabase
-      .from('customers')
-      .insert([{ name, document, email, phone }])
+    const cleanDocument = document.replace(/\D/g, '')
 
-    if (error) {
-      alert("Erro ao adicionar cliente: " + error.message)
+    const payload = { 
+      name, 
+      document: cleanDocument, 
+      email, 
+      phone,
+      ie,
+      address_street: addressStreet,
+      address_number: addressNumber,
+      address_district: addressDistrict,
+      address_zip: addressZip.replace(/\D/g, ''),
+      address_ibge: addressIbge.replace(/\D/g, '')
+    }
+
+    let resultError;
+
+    if (editingCustomerId) {
+      const { error } = await supabase
+        .from('customers')
+        .update(payload)
+        .eq('id', editingCustomerId)
+      resultError = error
     } else {
-      setName("")
-      setDocument("")
-      setEmail("")
-      setPhone("")
+      const { error } = await supabase
+        .from('customers')
+        .insert([payload])
+      resultError = error
+    }
+
+    if (resultError) {
+      alert("Erro ao salvar cliente: " + resultError.message)
+    } else {
+      cancelEdit()
       fetchCustomers()
     }
     setLoading(false)
@@ -198,7 +259,7 @@ export default function Customers() {
   )
 
   return (
-    <div className="p-4 md:p-8 bg-background min-h-screen dark text-foreground">
+    <div className="p-4 md:p-8 bg-background min-h-screen text-foreground">
       <div className="mb-8 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/dashboard')}>
@@ -211,13 +272,14 @@ export default function Customers() {
             <p className="text-muted-foreground mt-1">Gerencie a base de clientes e aprove reservas da Vitrine Virtual.</p>
           </div>
         </div>
+        <ThemeToggle />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-8">
           <Card className="border-border">
             <CardHeader>
-              <CardTitle>Novo Cliente</CardTitle>
+              <CardTitle>{editingCustomerId ? "Editar Cliente" : "Novo Cliente"}</CardTitle>
               <CardDescription>Cadastre manualmente para histórico e integração com PDV.</CardDescription>
             </CardHeader>
             <form onSubmit={handleAddCustomer}>
@@ -238,9 +300,52 @@ export default function Customers() {
                   <label className="text-sm font-medium">Email</label>
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  <Plus className="w-4 h-4 mr-2" /> Salvar Cliente
-                </Button>
+                
+                <hr className="border-border my-4" />
+                <h3 className="text-sm font-semibold text-muted-foreground">Dados Fiscais / Endereço (NFe)</h3>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Inscrição Estadual (IE)</label>
+                  <Input value={ie} onChange={e => setIe(e.target.value)} placeholder="Números ou 'ISENTO'" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">CEP</label>
+                    <Input value={addressZip} onChange={e => setAddressZip(e.target.value)} placeholder="00000-000" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Cidade</label>
+                    <Input value={addressIbge} onChange={e => setAddressIbge(e.target.value)} placeholder="Ex: 3550308" />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Logradouro (Rua)</label>
+                  <Input value={addressStreet} onChange={e => setAddressStreet(e.target.value)} placeholder="Av. Principal" />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Número</label>
+                    <Input value={addressNumber} onChange={e => setAddressNumber(e.target.value)} placeholder="123" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Bairro</label>
+                    <Input value={addressDistrict} onChange={e => setAddressDistrict(e.target.value)} placeholder="Centro" />
+                  </div>
+                </div>
+
+                <div className="flex gap-2 mt-6">
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    <Plus className="w-4 h-4 mr-2" /> Salvar Cliente
+                  </Button>
+                  {editingCustomerId && (
+                    <Button type="button" variant="outline" className="w-full" onClick={cancelEdit} disabled={loading}>
+                      <X className="w-4 h-4 mr-2" /> Cancelar
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </form>
           </Card>
@@ -388,6 +493,9 @@ export default function Customers() {
                           </Button>
                           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-green-500 mr-2" onClick={() => updateCashback(c.id, c.cashback_balance || 0)} title="Ajustar Cashback">
                             <Wallet className="w-4 h-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary mr-2" onClick={() => handleEditCustomer(c)} title="Editar Cliente">
+                            <Edit className="w-4 h-4" />
                           </Button>
                           <Button variant="ghost" size="icon" className="text-destructive" onClick={() => deleteCustomer(c.id)} title="Excluir Cliente">
                             <Trash2 className="w-4 h-4" />

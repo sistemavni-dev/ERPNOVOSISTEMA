@@ -41,7 +41,7 @@ serve(async (req) => {
     }
 
     if (!customerId) {
-      return new Response(JSON.stringify({ message: "Venda sem cliente associado." }), { status: 200 })
+      return new Response(JSON.stringify({ message: "Venda sem cliente associado." }), { status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } })
     }
 
     // 2. Lookup telegram_chat_id
@@ -54,7 +54,7 @@ serve(async (req) => {
     const chatId = customerData?.telegram_chat_id
 
     if (!chatId) {
-      return new Response(JSON.stringify({ message: "Cliente não possui Telegram vinculado (chat_id)." }), { status: 200 })
+      return new Response(JSON.stringify({ message: "Cliente não possui Telegram vinculado (chat_id)." }), { status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } })
     }
 
     // 3. Build message text
@@ -95,7 +95,7 @@ serve(async (req) => {
       .single()
 
     if (!agentConfig || !agentConfig.is_active || !agentConfig.bot_token) {
-      return new Response(JSON.stringify({ error: "Integração Telegram não configurada ou inativa para este tenant." }), { status: 200 })
+      return new Response(JSON.stringify({ error: "Integração Telegram não configurada ou inativa para este tenant." }), { status: 200, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } })
     }
 
     // Auto-register webhook to ensure it is always correct

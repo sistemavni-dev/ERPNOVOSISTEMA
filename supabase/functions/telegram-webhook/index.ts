@@ -146,22 +146,91 @@ serve(async (req) => {
       if (callbackData === 'action_catalog') {
         const { data: products } = await supabaseClient
           .from('products')
-          .select('name, price, stock_quantity')
+          .select('id, name, price, inventory!inner(quantity)')
           .eq('tenant_id', tenantId)
-          .gt('stock_quantity', 0)
+          .gt('inventory.quantity', 0)
           .limit(10)
         
         let msg = "📦 *Nosso Catálogo de Produtos:*\n\n"
+        let inlineKeyboard: any = { inline_keyboard: [] }
+
         if (products && products.length > 0) {
           products.forEach(p => {
             msg += `▫️ *${p.name}* - R$ ${Number(p.price).toFixed(2)}\n`
+            inlineKeyboard.inline_keyboard.push([
+              { text: `🛒 Reservar ${p.name}`, callback_data: `reserve_${p.id}` }
+            ])
           })
-          msg += "\nPara comprar, clique em *Falar com Atendente* ou envie uma mensagem descrevendo o que deseja!"
+          msg += "\nPara confirmar, clique no botão de reserva acima referente ao produto desejado!"
+          await sendTelegramMessage(msg, inlineKeyboard)
         } else {
           msg = "No momento não temos produtos cadastrados em estoque."
+          await sendTelegramMessage(msg)
         }
-        await sendTelegramMessage(msg)
         return new Response("Catalog sent", { status: 200 })
+      }
+
+      if (callbackData.startsWith('reserve_')) {
+        const productId = callbackData.replace('reserve_', '')
+        
+        const { data: product } = await supabaseClient
+          .from('products')
+          .select('id, name, price, inventory(id, quantity)')
+          .eq('id', productId)
+          .eq('tenant_id', tenantId)
+          .single()
+
+        const currentStock = product?.inventory?.[0]?.quantity || 0
+
+        if (!product || currentStock <= 0) {
+          await sendTelegramMessage("Desculpe, este produto acabou de esgotar!")
+          return new Response("Out of stock", { status: 200 })
+        }
+
+        if (!customer) {
+          await sendTelegramMessage("Erro: Cliente não identificado. Tente mandar um 'Oi' novamente.")
+          return new Response("No customer", { status: 200 })
+        }
+
+        const payload = {
+            tenant_id: tenantId,
+            customer_id: customer.id,
+            total_amount: product.price,
+            discount: 0,
+            status: 'awaiting_pickup'
+        };
+
+        const { data: saleArray, error: saleError } = await supabaseClient
+          .from('sales')
+          .insert([payload])
+          .select()
+
+        const sale = saleArray?.[0]
+
+        if (saleError || !sale) {
+          console.error("Sale Error:", saleError);
+          await sendTelegramMessage(`Houve um erro ao processar sua reserva. Tente novamente. (Erro: ${saleError?.message || JSON.stringify(saleError)})`)
+          return new Response("Sale Error", { status: 200 })
+        }
+
+        await supabaseClient
+          .from('sale_items')
+          .insert({
+            tenant_id: tenantId,
+            sale_id: sale.id,
+            product_id: product.id,
+            quantity: 1,
+            unit_price: product.price,
+            total_price: product.price
+          })
+
+        await supabaseClient
+          .from('inventory')
+          .update({ quantity: currentStock - 1 })
+          .eq('id', product.inventory[0].id)
+
+        await sendTelegramMessage(`✅ *Reserva Confirmada!*\n\nO produto *${product.name}* foi reservado para você (Pedido #${sale.id.slice(0,8)}).\n\nO valor é de R$ ${Number(product.price).toFixed(2)}.\nO pedido está aguardando retirada na loja física!`)
+        return new Response("Reserved", { status: 200 })
       }
 
       if (callbackData === 'action_orders') {
@@ -211,14 +280,14 @@ serve(async (req) => {
     if (features.includes('sell_products')) {
       const { data: products } = await supabaseClient
         .from('products')
-        .select('name, price, sku, stock_quantity')
+        .select('name, price, sku, inventory!inner(quantity)')
         .eq('tenant_id', tenantId)
-        .gt('stock_quantity', 0)
+        .gt('inventory.quantity', 0)
         .limit(15)
 
       if (products && products.length > 0) {
         productCatalogText = "Catálogo de Produtos Disponíveis em Estoque:\n" + products.map(p => 
-          `- *${p.name}* | Preço: R$ ${Number(p.price).toFixed(2)} | SKU: ${p.sku || 'Sem SKU'} | Estoque: ${p.stock_quantity} unidades`
+          `- *${p.name}* | Preço: R$ ${Number(p.price).toFixed(2)} | SKU: ${p.sku || 'Sem SKU'} | Estoque: ${p.inventory?.[0]?.quantity || 0} unidades`
         ).join('\n')
       }
     }
@@ -243,26 +312,45 @@ Se o cliente pedir expressamente para falar com um humano, responda confirmando 
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
     if (!geminiApiKey) {
       console.error("Gemini API Key missing!")
-      return new Response("Gemini Key missing", { status: 500 })
+      return new Response("Gemini Key missing", { status: 200 })
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`
-    const geminiResponse = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: `Histórico/Mensagem do cliente: "${text}"\n\nInstrução do Sistema:\n${systemInstruction}` }] }
-        ]
-      })
-    })
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`
+    let responseText = ""
+    try {
+      let geminiResponse;
+      let retries = 2; // Tenta até 3 vezes (1 original + 2 retries)
+      
+      while (retries >= 0) {
+        geminiResponse = await fetch(geminiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              { role: "user", parts: [{ text: `Histórico/Mensagem do cliente: "${text}"\n\nInstrução do Sistema:\n${systemInstruction}` }] }
+            ]
+          })
+        })
 
-    if (!geminiResponse.ok) {
-      throw new Error(`Gemini API Error: ${await geminiResponse.text()}`)
+        if (geminiResponse.ok || geminiResponse.status !== 503 || retries === 0) {
+          break;
+        }
+        
+        // Se deu 503 (High Demand), espera 1.5 segundos e tenta de novo
+        await new Promise(r => setTimeout(r, 1500));
+        retries--;
+      }
+
+      if (!geminiResponse || !geminiResponse.ok) {
+        throw new Error(`Gemini API Error: ${await geminiResponse?.text()}`)
+      }
+
+      const geminiData = await geminiResponse.json()
+      responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não consegui processar sua mensagem no momento."
+    } catch (apiError: any) {
+      console.error("Gemini Failure:", apiError)
+      responseText = "⚠️ Desculpe, ocorreu um erro interno na IA: " + (apiError.message || "Erro desconhecido")
     }
-
-    const geminiData = await geminiResponse.json()
-    let responseText = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || "Desculpe, não consegui processar sua mensagem no momento."
 
     if (responseText.includes("[TRANSFER_HUMANO]")) {
       responseText = responseText.replace("[TRANSFER_HUMANO]", "").trim()
@@ -274,6 +362,7 @@ Se o cliente pedir expressamente para falar com um humano, responda confirmando 
 
   } catch (error: any) {
     console.error("Erro no processamento do webhook telegram:", error)
-    return new Response(JSON.stringify({ error: error.message }), { status: 400 })
+    // Retornamos 200 para o Telegram não tentar reenviar a mesma mensagem causando um loop de falhas
+    return new Response(JSON.stringify({ error: error.message }), { status: 200 })
   }
 })
