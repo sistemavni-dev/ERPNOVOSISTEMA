@@ -19,6 +19,7 @@ import SupplierQuotes from './pages/tenant/SupplierQuotes'
 import MemberClub from './pages/tenant/MemberClub'
 import Campaigns from './pages/tenant/Campaigns'
 import Profile from './pages/tenant/Profile'
+import Commissions from './pages/tenant/Commissions'
 import { PwaPrompt } from './components/PwaPrompt'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
@@ -176,6 +177,7 @@ function App() {
           <Route path="/campanhas" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><Campaigns /></PlanRoute></ProtectedRoute>} />
           <Route path="/clube-membros" element={<ProtectedRoute><PlanRoute allowedPlans={['ouro']}><MemberClub /></PlanRoute></ProtectedRoute>} />
           <Route path="/financeiro" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Finance /></PlanRoute></AdminRoute></ProtectedRoute>} />
+          <Route path="/comissoes" element={<ProtectedRoute><AdminRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Commissions /></PlanRoute></AdminRoute></ProtectedRoute>} />
           <Route path="/fornecedores" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><Suppliers /></PlanRoute></ProtectedRoute>} />
           <Route path="/orcamentos" element={<ProtectedRoute><PlanRoute allowedPlans={['prata', 'ouro']}><SupplierQuotes /></PlanRoute></ProtectedRoute>} />
           <Route path="/configuracoes" element={<ProtectedRoute><AdminRoute><Settings /></AdminRoute></ProtectedRoute>} />

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../..
 import { Settings as SettingsIcon, ArrowLeft, Save, Building2, Store, Bot, Smartphone, FileKey } from "lucide-react"
 import { ThemeToggle } from "../../components/ThemeToggle"
 import { encryptData } from "../../lib/utils"
+import { WhatsappConnection } from "../../components/WhatsappConnection"
 
 export default function Settings() {
   const [loading, setLoading] = useState(false)
@@ -445,8 +446,34 @@ export default function Settings() {
 
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8">
+            {/* Seção WhatsApp */}
+            <Card className="border-border">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Smartphone className="w-5 h-5 text-emerald-500" /> WhatsApp Multitenant
+                </CardTitle>
+                <CardDescription>Conecte o seu número para disparar comprovantes automáticos.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {plan === 'bronze' || plan === 'prata' ? (
+                  <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-4 bg-muted/50 rounded-lg border border-dashed border-border">
+                    <div className="p-4 bg-emerald-500/10 rounded-full text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                      <Smartphone className="w-10 h-10" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-foreground">Integração com WhatsApp Bloqueada</h3>
+                      <p className="text-muted-foreground text-xs mt-1 max-w-md">O disparo de mensagens e comprovantes automáticos via WhatsApp é exclusivo do Plano Ouro. Faça o upgrade para ativar.</p>
+                    </div>
+                    <Button type="button" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/25 border-0" onClick={() => navigate('/planos')}>Fazer Upgrade para Ouro</Button>
+                  </div>
+                ) : (
+                  profileId ? <WhatsappConnection tenantId={profileId} /> : <div className="p-4 text-center">Carregando...</div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Seção do Agente Autônomo de Telegram */}
-          <div className="mt-8">
             <Card className="border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

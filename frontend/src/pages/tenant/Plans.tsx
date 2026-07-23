@@ -501,7 +501,7 @@ export default function Plans() {
               <ul className="space-y-3 text-sm text-foreground">
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Tudo do Bronze + Finanças, Orçamentos e Fornecedores</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> Trava Fiscal: Até 100 NF-e/mês</li>
-                <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-zinc-400" /> WhatsApp Liberado (Apenas Comprovantes PDV)</li>
+                <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Trava de Mensageria: Bloqueado (Sem Whats/Telegram)</li>
                 <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Vitrine Virtual: Bloqueado</li>
                 <li className="flex items-center gap-2 text-zinc-600 opacity-60"><Lock className="w-4 h-4" /> Agente de IA (Telegram): Bloqueado</li>
               </ul>
@@ -533,7 +533,7 @@ export default function Plans() {
               <ul className="space-y-3 text-sm text-foreground">
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Tudo do Prata + Vitrine Virtual Ilimitada</li>
                 <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-purple-500" /> Trava Fiscal: Até 300 NF-e/mês</li>
-                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">WhatsApp Liberado + Agente de IA do Telegram Ativo</span> (Diretrizes e Módulos de Atuação)</div></li>
+                <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-purple-500 mt-0.5" /> <div><span className="font-bold">WhatsApp Liberado</span> (envio de comprovante) <span className="font-bold">+ Agente de IA do Telegram Ativo</span>, (ver produtos e reservar, ver cashback e muito mais...)</div></li>
                 <li className="flex items-center gap-2 font-bold text-purple-400 bg-purple-950/20 p-2.5 rounded-md border border-purple-500/10 mt-2"><CheckCircle className="w-4 h-4 text-purple-400" /> Suporte Prioritário 24/7</li>
               </ul>
             </CardContent>

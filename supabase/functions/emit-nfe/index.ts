@@ -13,18 +13,31 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Instanciar Supabase com Service Role para acessar dados protegidos
-    const supabaseClient = createClient(
+    // 1. Validar a autenticação do usuário que está chamando a função
+    const authHeader = req.headers.get('Authorization')!
+    const supabaseAuthClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
     )
+    
+    const { data: { user }, error: userError } = await supabaseAuthClient.auth.getUser()
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" } })
+    }
 
     // 2. Extrair payload da requisição (ID da venda)
     const { sale_id, tenant_id } = await req.json()
 
-    if (!tenant_id) {
-      throw new Error("tenant_id é obrigatório.")
+    if (!tenant_id || tenant_id !== user.id) {
+      throw new Error("Acesso negado. O tenant_id não corresponde ao usuário autenticado.")
     }
+
+    // 3. Instanciar Supabase com Service Role para acessar dados protegidos (se necessário, ex: pgcrypto)
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     // 2.1 Verificar plano do tenant
     const { data: tenant, error: tenantError } = await supabaseClient

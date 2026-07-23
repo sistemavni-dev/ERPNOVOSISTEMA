@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,7 +7,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Tratamento de CORS para chamadas do Frontend
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -21,10 +21,30 @@ serve(async (req) => {
       })
     }
 
-    // Pega as variáveis de ambiente (Secrets do Supabase)
     const apiUrl = Deno.env.get('EVOLUTION_API_URL')
     const apiKey = Deno.env.get('EVOLUTION_API_KEY')
-    const instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'NexERP'
+    
+    let instanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || 'NexERP'
+
+    // Busca a instância do tenant se o tenant_id for informado
+    if (tenant_id) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('whatsapp_instance_name, whatsapp_status')
+        .eq('id', tenant_id)
+        .single()
+        
+      if (tenantData && tenantData.whatsapp_status === 'connected' && tenantData.whatsapp_instance_name) {
+        instanceName = tenantData.whatsapp_instance_name
+      } else {
+        console.warn(`[Send-WhatsApp] Tenant ${tenant_id} não possui WhatsApp conectado. Tentando via instância global/padrão.`)
+      }
+    }
 
     if (!apiUrl || !apiKey) {
       console.error("Credenciais da Evolution API não configuradas no Supabase.")

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
@@ -18,6 +18,7 @@ interface Product {
 
 interface CartItem extends Product {
   cartQuantity: number
+  unitDiscount?: number
 }
 
 interface Customer {
@@ -25,11 +26,18 @@ interface Customer {
   name: string
   cashback_balance: number
   phone: string
+  document?: string
+}
+
+interface Seller {
+  id: string;
+  name: string;
 }
 
 export default function POS() {
   const [products, setProducts] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [sellers, setSellers] = useState<Seller[]>([])
   const [tenant, setTenant] = useState<any>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [search, setSearch] = useState("")
@@ -41,9 +49,11 @@ export default function POS() {
   
   // Novos estados
   const [selectedCustomer, setSelectedCustomer] = useState<string>("")
+  const [selectedSeller, setSelectedSeller] = useState<string>("")
   const [discountInput, setDiscountInput] = useState<string>("")
   const [cashbackInput, setCashbackInput] = useState<string>("")
   const [receivedAmountInput, setReceivedAmountInput] = useState<string>("")
+  const [observationsInput, setObservationsInput] = useState<string>("")
   const [addChangeToWallet, setAddChangeToWallet] = useState<boolean>(false)
   const [receiptData, setReceiptData] = useState<any>(null)
   const [showPixModal, setShowPixModal] = useState<boolean>(false)
@@ -57,10 +67,46 @@ export default function POS() {
   const [isCartOpen, setIsCartOpen] = useState(false)
 
   const navigate = useNavigate()
+  const location = useLocation()
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchData()
-  }, [])
+    if (location.state?.editQuoteId) {
+      loadQuote(location.state.editQuoteId)
+    }
+  }, [location.state])
+
+  const loadQuote = async (quoteId: string) => {
+    setLoading(true)
+    try {
+      const { data: sale } = await supabase.from('sales').select('*').eq('id', quoteId).single()
+      if (!sale) return
+      
+      const { data: items } = await supabase.from('sale_items').select('*, products(*)').eq('sale_id', quoteId)
+      
+      setEditingQuoteId(quoteId)
+      if (sale.customer_id) setSelectedCustomer(sale.customer_id)
+      if (sale.discount) setDiscountInput(sale.discount.toString())
+      if (sale.observations) setObservationsInput(sale.observations)
+      
+      if (items) {
+        const loadedCart = items.map(item => {
+          const prod = Array.isArray(item.products) ? item.products[0] : item.products;
+          return {
+            ...prod,
+            cartQuantity: item.quantity,
+            price: item.unit_price
+          }
+        })
+        setCart(loadedCart as CartItem[])
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const fetchData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -71,6 +117,14 @@ export default function POS() {
     
     fetchProducts()
     fetchCustomers()
+    fetchSellers()
+  }
+
+  const fetchSellers = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase.from('sellers').select('id, name').eq('tenant_id', user.id)
+    setSellers(data || [])
   }
 
   const fetchProducts = async () => {
@@ -95,7 +149,7 @@ export default function POS() {
           item.id === product.id ? { ...item, cartQuantity: item.cartQuantity + 1 } : item
         )
       }
-      return [...prev, { ...product, cartQuantity: 1 }]
+      return [...prev, { ...product, cartQuantity: 1, unitDiscount: 0 }]
     })
   }
 
@@ -109,11 +163,20 @@ export default function POS() {
     }))
   }
 
+  const updateItemDiscount = (id: string, discount: number) => {
+    setCart((prev) => prev.map(item => {
+      if (item.id === id) {
+        return { ...item, unitDiscount: discount }
+      }
+      return item
+    }))
+  }
+
   const removeFromCart = (id: string) => {
     setCart((prev) => prev.filter(item => item.id !== id))
   }
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.cartQuantity), 0)
+  const subtotal = cart.reduce((acc, item) => acc + ((item.price - (item.unitDiscount || 0)) * item.cartQuantity), 0)
   const discountAmount = parseFloat(discountInput) || 0
 
   const customerInfo = selectedCustomer ? customers.find(c => c.id === selectedCustomer) : null
@@ -173,18 +236,49 @@ export default function POS() {
       }
     }
 
-    // 1. Criar a venda base
-    const { data: sale, error: saleError } = await supabase
-      .from('sales')
-      .insert([{ 
-        tenant_id: tenant.id,
-        total_amount: totalAmount, 
-        status: isQuote ? 'quote' : (paymentMethod === 'installments' ? 'pending' : 'paid'), 
-        customer_id: selectedCustomer || null,
-        discount: discountAmount
-      }])
-      .select()
-      .single()
+    const finalTotal = isQuote ? amountBeforeCashback : totalAmount;
+    const finalCashbackDeducted = isQuote ? 0 : cashbackDeducted;
+
+    // 1. Criar ou atualizar a venda base
+    let sale = null;
+    let saleError = null;
+
+    if (editingQuoteId) {
+       const res = await supabase
+         .from('sales')
+         .update({ 
+           total_amount: finalTotal, 
+           status: isQuote ? 'quote' : (paymentMethod === 'installments' ? 'pending' : 'paid'), 
+           customer_id: selectedCustomer || null,
+           seller_id: selectedSeller || null,
+           discount: discountAmount,
+           observations: observationsInput || null
+         })
+         .eq('id', editingQuoteId)
+         .select()
+         .single()
+       sale = res.data
+       saleError = res.error
+       if (!saleError) {
+         await supabase.from('sale_items').delete().eq('sale_id', editingQuoteId)
+       }
+    } else {
+       const res = await supabase
+         .from('sales')
+         .insert([{ 
+           tenant_id: tenant.id,
+           total_amount: finalTotal, 
+           status: isQuote ? 'quote' : (paymentMethod === 'installments' ? 'pending' : 'paid'), 
+           customer_id: selectedCustomer || null,
+           seller_id: selectedSeller || null,
+           discount: discountAmount,
+           observations: observationsInput || null
+         }])
+         .select()
+         .single()
+       sale = res.data
+       saleError = res.error
+    }
 
     if (saleError || !sale) {
       alert("Erro ao finalizar venda. Erro: " + (saleError?.message || ''))
@@ -198,43 +292,42 @@ export default function POS() {
       sale_id: sale.id,
       product_id: item.id,
       quantity: item.cartQuantity,
-      unit_price: item.price,
-      total_price: item.price * item.cartQuantity
+      unit_price: item.price - (item.unitDiscount || 0),
+      total_price: (item.price - (item.unitDiscount || 0)) * item.cartQuantity
     }))
     await supabase.from('sale_items').insert(saleItems)
 
     // 3. Lógica Financeira (À Vista vs A Prazo)
     let generatedInstallments: any[] = []
     
+    if (paymentMethod === 'installments') {
+      const numInstallments = parseInt(installmentPlan)
+      const installmentAmount = finalTotal / numInstallments
+      
+      for (let i = 1; i <= numInstallments; i++) {
+        const dueDate = new Date()
+        dueDate.setDate(dueDate.getDate() + (30 * i))
+        const instDateStr = dueDate.toISOString().split('T')[0]
+        
+        generatedInstallments.push({
+          number: i,
+          amount: installmentAmount,
+          due_date: instDateStr
+        })
+      }
+    }
+
     if (!isQuote) {
       if (paymentMethod === 'installments') {
-        const numInstallments = parseInt(installmentPlan)
-        const installmentAmount = totalAmount / numInstallments
-        const transactions = []
-        
-        for (let i = 1; i <= numInstallments; i++) {
-          const dueDate = new Date()
-          dueDate.setDate(dueDate.getDate() + (30 * i))
-          
-          const instDateStr = dueDate.toISOString().split('T')[0]
-          
-          transactions.push({
-            tenant_id: tenant.id,
-            sale_id: sale.id,
-            type: 'receivable',
-            amount: installmentAmount,
-            due_date: instDateStr,
-            status: 'pending', // Fica pendente no caixa!
-            category: `Parcela ${i}/${numInstallments} - PDV (A Prazo)`
-          })
-          
-          generatedInstallments.push({
-            number: i,
-            amount: installmentAmount,
-            due_date: instDateStr
-          })
-        }
-        
+        const transactions = generatedInstallments.map(inst => ({
+          tenant_id: tenant.id,
+          sale_id: sale.id,
+          type: 'receivable',
+          amount: inst.amount,
+          due_date: inst.due_date,
+          status: 'pending',
+          category: `Parcela ${inst.number}/${generatedInstallments.length} - PDV (A Prazo)`
+        }))
         await supabase.from('financial_transactions').insert(transactions)
       } else {
         // Venda à vista (Dinheiro, PIX, Cartão) - Já entra liquidada
@@ -242,7 +335,7 @@ export default function POS() {
            tenant_id: tenant.id,
            sale_id: sale.id,
            type: 'receivable',
-           amount: totalAmount,
+           amount: finalTotal,
            due_date: new Date().toISOString().split('T')[0],
            status: 'paid', // Liquidada!
            category: `Venda à Vista PDV - ${paymentMethod.toUpperCase()}`
@@ -332,12 +425,13 @@ export default function POS() {
       items: [...cart],
       subtotal,
       discount: discountAmount,
-      total: totalAmount,
-      customer: updatedCustomerInfo?.name || "Consumidor Final",
+      total: finalTotal,
+      observations: observationsInput,
+      customer: updatedCustomerInfo || { name: "Consumidor Final" },
       paymentMethod,
       installments: generatedInstallments,
       cashbackEarned: cashbackEarned + changeToAddToWallet,
-      cashbackDeducted,
+      cashbackDeducted: finalCashbackDeducted,
       receivedAmount,
       changeAmount,
       changeAddedToWallet: changeToAddToWallet
@@ -348,6 +442,8 @@ export default function POS() {
 
     setSuccess(true)
     setCart([])
+    setEditingQuoteId(null)
+    setObservationsInput("")
     setEmitNfe(false)
     setSendWhatsapp(false)
     setDiscountInput("")
@@ -355,6 +451,7 @@ export default function POS() {
     setReceivedAmountInput("")
     setAddChangeToWallet(false)
     setSelectedCustomer("")
+    setSelectedSeller("")
     setPaymentMethod("money")
     setInstallmentPlan("1")
     setLoading(false)
@@ -514,18 +611,33 @@ export default function POS() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="relative w-[300px]">
-            <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground pointer-events-none" />
-            <select 
-              className="w-full h-12 pl-10 pr-3 rounded-md border border-input bg-background text-sm cursor-pointer appearance-none"
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
-            >
-              <option value="" className="bg-background text-foreground">Consumidor Final</option>
-              {customers.map(c => (
-                <option key={c.id} value={c.id} className="bg-background text-foreground">{c.name} (Saldo: R$ {c.cashback_balance || 0})</option>
-              ))}
-            </select>
+          <div className="flex gap-2">
+            <div className="relative w-[200px]">
+              <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground pointer-events-none" />
+              <select 
+                className="w-full h-12 pl-10 pr-3 rounded-md border border-input bg-background text-sm cursor-pointer appearance-none"
+                value={selectedSeller}
+                onChange={(e) => setSelectedSeller(e.target.value)}
+              >
+                <option value="" className="bg-background text-foreground">Vendedor (Opcional)</option>
+                {sellers.map(s => (
+                  <option key={s.id} value={s.id} className="bg-background text-foreground">{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="relative w-[300px]">
+              <User className="absolute left-3 top-3 h-5 w-5 text-muted-foreground pointer-events-none" />
+              <select 
+                className="w-full h-12 pl-10 pr-3 rounded-md border border-input bg-background text-sm cursor-pointer appearance-none"
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+              >
+                <option value="" className="bg-background text-foreground">Consumidor Final</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id} className="bg-background text-foreground">{c.name} (Saldo: R$ {c.cashback_balance || 0})</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
@@ -622,9 +734,34 @@ export default function POS() {
                 )}
                 <div className="flex flex-col min-w-0">
                   <span className="font-medium text-foreground dark:text-neutral-100 text-sm truncate">{item.name}</span>
-                  <span className="text-primary dark:text-emerald-400 font-bold text-xs mt-0.5">
-                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price * item.cartQuantity)}
-                  </span>
+                  <div className="flex flex-col mt-0.5 gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-primary dark:text-emerald-400 font-bold text-xs">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price - (item.unitDiscount || 0))}
+                      </span>
+                      {(item.unitDiscount || 0) > 0 && (
+                        <span className="text-[10px] text-muted-foreground line-through">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.price)}
+                        </span>
+                      )}
+                      {item.cartQuantity > 1 && (
+                        <span className="text-[10px] text-muted-foreground ml-1 font-normal">
+                          (Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((item.price - (item.unitDiscount || 0)) * item.cartQuantity)})
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px]">
+                      <span className="text-muted-foreground font-medium">Desconto R$:</span>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        min="0"
+                        className="h-5 w-16 p-0 bg-transparent border-b border-border hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-0 text-foreground font-semibold text-[11px] transition-colors" 
+                        value={item.unitDiscount || ''}
+                        onChange={(e) => updateItemDiscount(item.id, parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -705,6 +842,16 @@ export default function POS() {
                 value={cashbackInput}
                 onChange={(e) => setCashbackInput(e.target.value)}
                 disabled={!selectedCustomer}
+              />
+            </div>
+
+            <div className="flex flex-col bg-background p-2 rounded-md border border-input gap-1">
+              <span className="text-sm font-medium px-2">Observações:</span>
+              <Input 
+                placeholder="Ex: Entrega na terça, embalar pra presente..." 
+                className="w-full h-8 bg-transparent border-0 focus-visible:ring-0"
+                value={observationsInput}
+                onChange={(e) => setObservationsInput(e.target.value)}
               />
             </div>
 
@@ -871,7 +1018,9 @@ export default function POS() {
 
           <div className="border-t border-black border-dashed pt-2 mt-4 text-center">
             <p className="font-bold mb-1">DADOS DO CLIENTE</p>
-            <p>{receiptData.customer}</p>
+            <p>{receiptData.customer.name}</p>
+            {receiptData.customer.document && <p>CPF/CNPJ: {receiptData.customer.document}</p>}
+            {receiptData.customer.phone && <p>Tel: {receiptData.customer.phone}</p>}
             
             {/* Se for a prazo, mostra as parcelas no recibo físico também! */}
             {receiptData.installments?.length > 0 && (
@@ -883,6 +1032,13 @@ export default function POS() {
                     <span>R$ {inst.amount.toFixed(2)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {receiptData.observations && (
+              <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
+                <p className="font-bold">OBSERVAÇÕES</p>
+                <p className="break-words">{receiptData.observations}</p>
               </div>
             )}
 

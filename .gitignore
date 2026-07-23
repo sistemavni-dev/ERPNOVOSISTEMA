@@ -27,3 +27,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Test scripts
+test-*.js
+test-*.ts
+test.js
+test.ts
+frontend/*.js
+frontend/bypass.js

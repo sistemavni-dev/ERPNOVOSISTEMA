@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase"
 import { Button } from "../../components/ui/button"
 import { Input } from "../../components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card"
-import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock, User, Megaphone, Headset, Gift, Send, Sun, Moon } from "lucide-react"
+import { LogOut, LayoutDashboard, ShoppingCart, Users, Package, DollarSign, Printer, Settings, Menu, X, Truck, FileText, Crown, Lock, User, Megaphone, Headset, Gift, Send, Sun, Moon, Edit, Eye, Trophy } from "lucide-react"
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, BarChart, Bar } from "recharts"
 import { useTheme } from "../../components/ThemeProvider"
 
@@ -149,7 +149,7 @@ export default function TenantDashboard() {
     // Últimas Vendas
     const { data: recentData } = await supabase
       .from('sales')
-      .select('*, customers(name)')
+      .select('*, customers(name, document, phone)')
       .order('created_at', { ascending: false })
       .limit(10)
       
@@ -228,7 +228,7 @@ export default function TenantDashboard() {
     loadMetrics()
   }
 
-  const handleReprintSale = async (sale: any) => {
+  const handleViewSale = async (sale: any) => {
     // Busca os produtos atrelados à venda
     const { data: items } = await supabase
       .from('sale_items')
@@ -249,14 +249,9 @@ export default function TenantDashboard() {
       discount: sale.discount || 0,
       subtotal: subtotal,
       total: sale.total_amount,
-      date: new Date(sale.created_at).toLocaleString('pt-BR')
+      date: new Date(sale.created_at).toLocaleString('pt-BR'),
+      observations: sale.observations || ''
     })
-
-    // Aguarda a renderização do DOM e dispara a impressão
-    setTimeout(() => {
-      window.print()
-      // Opcional: setReceiptData(null) após imprimir se não quiser manter os dados na tela oculta
-    }, 500)
   }
 
   const handleLogout = async () => {
@@ -338,9 +333,14 @@ export default function TenantDashboard() {
             <FileText className="w-4 h-4" /> Orçamentos {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-muted-foreground" />}
           </Button>
           {profile?.tenants?.role !== 'cashier' && (
-            <Button variant="ghost" className={`w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-muted ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/financeiro') : navigate('/planos?blocked=true')}>
-              <DollarSign className="w-4 h-4" /> Financeiro {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-muted-foreground" />}
-            </Button>
+            <>
+              <Button variant="ghost" className={`w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-muted ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/financeiro') : navigate('/planos?blocked=true')}>
+                <DollarSign className="w-4 h-4" /> Financeiro {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-muted-foreground" />}
+              </Button>
+              <Button variant="ghost" className={`w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-muted ${!hasPrataAccess && 'opacity-70'}`} onClick={() => hasPrataAccess ? navigate('/comissoes') : navigate('/planos?blocked=true')}>
+                <Trophy className="w-4 h-4 text-yellow-500" /> Comissões & Metas {!hasPrataAccess && <Lock className="w-3 h-3 ml-auto text-muted-foreground" />}
+              </Button>
+            </>
           )}
           {profile?.tenants?.role !== 'cashier' && (
             <Button variant="ghost" className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground hover:bg-muted" onClick={() => navigate('/configuracoes')}>
@@ -653,6 +653,7 @@ export default function TenantDashboard() {
                           {sale.status === 'pending' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-500/10 text-blue-600 dark:text-blue-500 border border-blue-500/20">Pendente</span>}
                           {sale.status === 'pending_online' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">Pendente Online</span>}
                           {sale.status === 'cancelled' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-500/10 text-rose-600 dark:text-rose-500 border border-rose-500/20">Cancelado</span>}
+                          {sale.status === 'quote' && <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20">Orçamento</span>}
                         </td>
                         <td className="px-4 py-3 text-right">
                           {sale.status === 'awaiting_pickup' && (
@@ -660,8 +661,13 @@ export default function TenantDashboard() {
                               Dar Baixa
                             </Button>
                           )}
-                          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground h-8 px-2 mr-2" onClick={() => handleReprintSale(sale)}>
-                            <Printer className="w-4 h-4" />
+                          {sale.status === 'quote' && (
+                            <Button variant="ghost" size="sm" className="text-blue-400 hover:text-blue-300 h-8 px-2 mr-2" onClick={() => navigate('/pdv', { state: { editQuoteId: sale.id } })}>
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground h-8 px-2 mr-2" onClick={() => handleViewSale(sale)}>
+                            <Eye className="w-4 h-4" />
                           </Button>
                           {profile?.tenants?.role !== 'cashier' && (
                             <Button variant="ghost" size="sm" className="text-destructive h-8 px-2" onClick={() => handleDeleteSale(sale.id)}>
@@ -687,6 +693,90 @@ export default function TenantDashboard() {
       </main>
     </div>
 
+    {/* Modal de Visualização do Cupom */}
+    {receiptData && (
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-md flex items-center justify-center z-[300] p-4 print:hidden">
+        <Card className="w-full max-w-md border-border bg-card shadow-2xl p-6 relative flex flex-col max-h-[90vh]">
+          <CardTitle className="mb-4 text-center">Visualização do Recibo</CardTitle>
+          
+          <div className="flex-1 overflow-y-auto bg-white text-black p-4 text-xs font-mono rounded-md border border-border shadow-inner">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-bold">{receiptData.tenant.toUpperCase()}</h2>
+              <p>CNPJ: {profile?.tenants?.document || '00.000.000/0001-00'}</p>
+              <p>{profile?.tenants?.address || 'Endereço da Loja'}</p>
+              <p>====================================</p>
+              <h3 className="font-bold mt-2">CUPOM NÃO FISCAL - VIA LOJA</h3>
+              <p>Data: {receiptData.date}</p>
+            </div>
+
+            <table className="w-full text-left border-collapse mb-4 text-black">
+              <thead>
+                <tr className="border-b border-dashed border-black">
+                  <th className="py-1 px-0 text-black">QTD</th>
+                  <th className="py-1 px-0 text-black">DESCRIÇÃO</th>
+                  <th className="py-1 px-0 text-right text-black">VL.UN</th>
+                  <th className="py-1 px-0 text-right text-black">VL.TOT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {receiptData.items.map((item: any, i: number) => (
+                  <tr key={i} className="hover:bg-transparent border-0">
+                    <td className="py-1 px-0 align-top text-black">{item.cartQuantity}x</td>
+                    <td className="py-1 px-0 break-words text-black">{item.name}</td>
+                    <td className="py-1 px-0 text-right align-top text-black">{item.price.toFixed(2)}</td>
+                    <td className="py-1 px-0 text-right align-top text-black">{(item.price * item.cartQuantity).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="border-t border-dashed border-black pt-2 space-y-1">
+              <div className="flex justify-between">
+                <span>SUBTOTAL:</span>
+                <span>R$ {receiptData.subtotal.toFixed(2)}</span>
+              </div>
+              {receiptData.discount > 0 && (
+                <div className="flex justify-between">
+                  <span>DESCONTO:</span>
+                  <span>- R$ {receiptData.discount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-sm mt-2 pt-2 border-t border-black">
+                <span>TOTAL A PAGAR:</span>
+                <span>R$ {receiptData.total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
+              <p className="font-bold">CLIENTE</p>
+              <p>{receiptData.customer?.name || 'Consumidor Final'}</p>
+              {receiptData.customer?.document && <p>CPF/CNPJ: {receiptData.customer.document}</p>}
+              {receiptData.customer?.phone && <p>Tel: {receiptData.customer.phone}</p>}
+            </div>
+
+            {receiptData.observations && (
+              <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
+                <p className="font-bold">OBSERVAÇÕES</p>
+                <p className="break-words">{receiptData.observations}</p>
+              </div>
+            )}
+
+            <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
+              <p>Obrigado pela preferência!</p>
+              <p>Volte sempre.</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-3 w-full mt-6">
+            <Button variant="outline" className="flex-1" onClick={() => setReceiptData(null)}>Fechar</Button>
+            <Button className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" /> Imprimir
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )}
+
     {/* Cupom Não Fiscal para Impressão (Fica oculto na tela normal, visível apenas na impressão) */}
     {receiptData && (
         <div className="hidden print:block absolute top-0 left-0 w-full bg-white text-black p-4 text-xs font-mono">
@@ -699,22 +789,22 @@ export default function TenantDashboard() {
             <p>Data: {receiptData.date}</p>
           </div>
 
-          <table className="w-full text-left border-collapse mb-4">
+          <table className="w-full text-left border-collapse mb-4 text-black">
             <thead>
               <tr className="border-b border-dashed border-black">
-                <th className="py-1">QTD</th>
-                <th className="py-1">DESCRIÇÃO</th>
-                <th className="py-1 text-right">VL.UN</th>
-                <th className="py-1 text-right">VL.TOT</th>
+                <th className="py-1 px-0 text-black">QTD</th>
+                <th className="py-1 px-0 text-black">DESCRIÇÃO</th>
+                <th className="py-1 px-0 text-right text-black">VL.UN</th>
+                <th className="py-1 px-0 text-right text-black">VL.TOT</th>
               </tr>
             </thead>
             <tbody>
               {receiptData.items.map((item: any, i: number) => (
-                <tr key={i}>
-                  <td className="py-1 align-top">{item.cartQuantity}x</td>
-                  <td className="py-1 break-words">{item.name}</td>
-                  <td className="py-1 text-right align-top">{item.price.toFixed(2)}</td>
-                  <td className="py-1 text-right align-top">{(item.price * item.cartQuantity).toFixed(2)}</td>
+                <tr key={i} className="hover:bg-transparent border-0">
+                  <td className="py-1 px-0 align-top text-black">{item.cartQuantity}x</td>
+                  <td className="py-1 px-0 break-words text-black">{item.name}</td>
+                  <td className="py-1 px-0 text-right align-top text-black">{item.price.toFixed(2)}</td>
+                  <td className="py-1 px-0 text-right align-top text-black">{(item.price * item.cartQuantity).toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -741,7 +831,17 @@ export default function TenantDashboard() {
             <p className="font-bold">CLIENTE</p>
             <p>{receiptData.customer?.name || 'Consumidor Final'}</p>
             {receiptData.customer?.document && <p>CPF/CNPJ: {receiptData.customer.document}</p>}
-            <br />
+            {receiptData.customer?.phone && <p>Tel: {receiptData.customer.phone}</p>}
+          </div>
+
+          {receiptData.observations && (
+            <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
+              <p className="font-bold">OBSERVAÇÕES</p>
+              <p className="break-words">{receiptData.observations}</p>
+            </div>
+          )}
+
+          <div className="mt-4 pt-4 border-t border-dashed border-black text-center space-y-1">
             <p>Obrigado pela preferência!</p>
             <p>Volte sempre.</p>
           </div>
